@@ -1,0 +1,15 @@
+import { chromium } from 'playwright-core';
+const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE});
+const page=await browser.newPage({viewport:{width:390,height:844}});
+await page.goto(process.env.BASE_URL??'http://127.0.0.1:3100');
+await page.locator('h1').filter({hasText:'ダッシュボード'}).waitFor();
+await page.screenshot({path:'tmp/dashboard-smoke.png',fullPage:true});
+const text=await page.locator('#dashboard').innerText();
+if(!text.includes('水煮加工')||!text.includes('チップス加工'))throw new Error('工程フローが表示されていません');
+await page.getByRole('button',{name:'青果'}).click();
+await page.getByText('収穫量').waitFor();
+await page.getByRole('button',{name:'メニューを開く'}).click();
+await page.getByRole('button',{name:'工程実績入力'}).click();
+await page.locator('#processForm').waitFor();
+if(await page.locator('#dashboardView').isVisible())throw new Error('入力画面とダッシュボードが同時に表示されています');
+await browser.close();

@@ -1,0 +1,125 @@
+# ⑦ API設計
+
+## 共通
+
+- ベース: `/api/v1`
+- Cookieセッション、CSRF対策、同一生成元を基本とする
+- 更新は `Idempotency-Key` 必須
+- 応答: `{ data, meta }`、エラー: `{ error: { code, message, fields? } }`
+- Phase1ではログインおよび閲覧専用アカウント区分を設けない。画面利用者はダッシュボード閲覧と管理入力を利用できる
+- 日付範囲は `from` を含み `to` を含む業務日として統一
+
+## 共通設定
+
+|Method|Path|制限|用途|
+|---|---|---|---|
+|GET|`/settings/ui`|なし|部門タブ、週開始曜日、単位表示|
+
+## ダッシュボード
+
+|Method|Path|用途|
+|---|---|---|
+|GET|`/dashboard?department=lotus&period=day&anchor=2026-07-17`|社長画面一括取得|
+|GET|`/dashboard/details/{metric}?department=&from=&to=`|KPI根拠明細|
+|GET|`/dashboard/inventory?department=&asOf=`|時点在庫|
+|GET|`/dashboard/process-analysis?department=&from=&to=`|工程別投入・加工後・廃棄・歩留まり・時間|
+|GET|`/dashboard/workforce-analysis?department=&from=&to=`|人別時間・人別工程時間・人別歩留まり・生産性|
+|GET|`/dashboard/product-profitability?department=&from=&to=`|商品別売上・直接原価・粗利・粗利率|
+
+トップ画面の一括応答は `period`, `range`, `closure`, `processFlow`, `finishedProductInventory`, `flavorInventory`, `shipmentSalesTotal`, `detailLinks` を含めます。商品別採算全件、人別詳細、原料在庫サマリーはトップ応答へ展開しません。
+
+青果部門ではトップ応答を`harvestQtyG`, `processedQtyG`, `shippedQtyG`, `salesAmount`に絞り、在庫一覧と取引先別売上を返しません。
+
+Dashboard系APIはGETのみとし、専用の更新APIを設けません。応答は取引原本から再計算し、集計キャッシュを使用する場合も原本から再構築可能にします。
+
+`processFlow`の各要素は`processId`, `processName`, `inputQty`, `outputQty`, `wasteQty`, `yieldRate`を持ち、工程マスタ順で返します。加工投入量と先頭工程投入量が同一原本の場合は一つの値として返し、クライアント側で重複カードを生成させません。完成重量・完成数量はフロー終端として返します。
+
+## 取引
+
+|Method|Path|用途|
+|---|---|---|
+|GET/POST|`/receipts`|入荷一覧・一括登録|
+|GET/PATCH|`/receipts/{id}`|詳細・訂正／取消|
+|GET/POST|`/process-runs`|工程実績一覧・登録|
+|GET/PATCH|`/process-runs/{id}`|詳細・訂正／取消|
+|GET/POST|`/individual-process-results`|個人別加工実績一覧・登録。通常登録に時間入力なし|
+|GET/PATCH|`/individual-process-results/{id}`|個人別実績の訂正／取消|
+|GET/POST|`/production-batches`|製造一括入力|
+|GET/PATCH|`/production-batches/{id}`|詳細・訂正／取消|
+|GET/POST|`/shipments`|出荷・売上一覧／登録|
+|GET/PATCH|`/shipments/{id}`|詳細・訂正／取消|
+|GET|`/shipments/{id}/profitability`|商品別売上・直接原価・粗利・粗利率の根拠|
+|GET/POST|`/work-sessions`|工数一覧／手入力|
+|GET/PATCH|`/work-sessions/{id}`|工数訂正・取消|
+|GET|`/inventory`|現在庫・条件検索|
+|GET|`/inventory/movements`|在庫元帳|
+|POST|`/stocktakes`|棚卸開始・登録|
+|POST|`/inventory-adjustments`|理由付き在庫調整|
+|POST|`/daily-closures`|日次確認|
+|POST|`/daily-closures/{id}/reopen`|理由付き再開|
+|GET|`/receivables?partner=&dueFrom=&dueTo=&status=`|売掛残高・入金予定一覧|
+|POST|`/payments`|入金登録|
+|POST|`/payments/{id}/allocations`|売掛消込|
+
+PATCHは更新内容と `reason`、現在の `version` を要求し、競合時は409を返します。
+
+納品登録では`deliveryDate`と`settlementType`を必須とし、売上は`deliveryDate`で認識します。`receivable`は`dueDate`を保持して売掛を生成し、`cash`は納品時点で入金済みとします。納品確定時に商品別の売上と直接原価内訳を保存します。
+
+## 資金繰りアプリ連携予約
+
+|Method|Path|用途|
+|---|---|---|
+|GET|`/integrations/cashflow/shipments?from=&to=&cursor=`|売掛／現金、売上、入金状態を差分取得|
+|POST|`/integrations/cashflow/acknowledgements`|連携先取込結果と外部IDを記録|
+
+認証方式、送受信方向、再送条件は資金繰りアプリ仕様との競合確認後に確定します。
+
+## マスタ
+
+`/masters/departments`, `/products`, `/items`, `/processes`, `/employees`, `/partners`, `/flavors`, `/locations`, `/units` を共通形式で提供します。削除APIは設けず `active=false` とします。
+
+工程マスタ更新は並び順と使用停止を含みます。商品・フレーバーマスタは既存IDを保持した移行後も追加・編集・使用停止を可能にします。商品別包材構成は`/masters/product-packaging-components`で管理します。
+
+## 原価・労務費
+
+|Method|Path|用途|
+|---|---|---|
+|GET|`/costs/process-labor?department=&from=&to=`|工程別時間・労務費・生産性|
+|GET|`/costs/products/{productId}?from=&to=`|材料・フレーバー・包材・外注・労務費内訳|
+|GET/POST|`/masters/labor-cost-rates`|適用賃率の一覧・登録|
+|PATCH|`/masters/labor-cost-rates/{id}`|有効期間付き賃率変更|
+
+月給者は`salaryAmount`, `weekdayCount`, `hoursPerDay=8`から管理時間単価を算出します。給与計算APIは設けません。チップス労務費は`chips_total`原価プールへ集約し、商品・フレーバー・内容量別配賦APIは設けません。
+
+重量フィールドはg整数で送受信し、重量単位指定やkg自動変換を受け付けません。
+
+## CSV・監査
+
+|Method|Path|用途|
+|---|---|---|
+|POST|`/imports/{type}/validate`|書込前検証|
+|POST|`/imports/{type}/commit`|検証済ジョブの確定|
+|GET|`/imports/{jobId}`|結果・エラー票|
+|GET|`/exports/{type}.csv?from=&to=&department=`|CSV出力|
+|GET|`/audit-logs`|監査検索|
+
+## Phase1 LINE
+
+|Method|Path|用途|
+|---|---|---|
+|POST|`/integrations/line/events`|署名検証付きLINE webhook|
+|GET|`/admin/line/work-sessions?date=&status=`|管理者の未終了・異常確認|
+|PATCH|`/admin/line/work-sessions/{id}`|理由付き訂正|
+|POST|`/admin/work-time-exceptions`|LINE障害・紐付け不能時の理由付き代替時間|
+
+LINEイベントは開始・終了だけを受け付けます。製造数量、入荷、在庫、出荷、歩留まりはLINEイベントから更新できません。LINE連携後、個人加工実績APIは時間を入力値として受け取らず、対応するwork sessionからサーバー側で算出します。
+
+## Phase2予約
+
+|Method|Path|用途|
+|---|---|---|
+|POST|`/integrations/n8n/events`|共有鍵・冪等外部イベント|
+|POST|`/ocr/documents`|画像受付|
+|POST|`/external-events/{id}/retry`|管理者再処理|
+
+Phase1でLINE用の`external_events`を実装し、OCR・n8nはPhase2まで公開しません。
