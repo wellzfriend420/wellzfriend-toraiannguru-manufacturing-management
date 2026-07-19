@@ -1,5 +1,9 @@
 # ④ DB設計
 
+## Phase2A追加
+
+`companies`、`company_settings`、`company_fixed_breaks`、`line_users`、`line_registration_codes`、`line_menu_items`、`work_breaks`、`line_events`、`external_events`、`work_session_corrections`、`work_session_links`、`notification_logs`を追加する。`line_events`は受信ごとの生データ監査、`external_events`はEventIDの冪等制御を担当する。既存行は初期会社「とらいアンぐる」へ自動所属する。工数原本と加工実績は多対多のリンク表で結び、再計算可能性を維持する。
+
 ## 方針
 
 - Node.js 22系＋SQLite。現行工程管理アプリのDB初期化、マイグレーション、バックアップ方式を流用する。
@@ -55,7 +59,7 @@ erDiagram
 |---|---|
 |receipt_batches|id, receipt_date, partner_id, department_id, status, source_type, external_id, memo|
 |receipt_lines|id, batch_id, item_id, lot_no, quantity, unit, amount, expiry_date|
-|process_runs|id, work_date, department_id, process_id, input_item_id, output_item_id, input_lot_id, output_lot_no, before_qty, after_qty, unit, waste_qty, started_at, ended_at, break_minutes, status, memo|
+|process_runs|id, work_date, department_id, process_id, product_id（青果では必須）, input_item_id, output_item_id, input_lot_id, output_lot_no, before_qty, after_qty, unit, waste_qty, started_at, ended_at, break_minutes, status, memo|
 |individual_process_results|id, process_run_id, employee_id, input_lot_id, input_qty_g, waste_qty_g, output_qty_g, work_session_id, calculated_minutes, time_source(`line`,`manual_exception`), memo, status|
 |production_batches|id, production_date, department_id, lot_no, started_at, ended_at, status, source_type, external_id, memo|
 |production_consumptions|id, batch_id, item_id, inventory_lot_id, quantity, unit, consumption_type(`material`,`flavor`,`packaging`)|

@@ -1,4 +1,4 @@
-# SETUP — Phase1初版
+# SETUP — Phase1 / Phase2A
 
 ## 起動
 
@@ -24,12 +24,27 @@
 
 現行工程管理アプリと同じく Node.js 22系、SQLite、標準Node HTTPサーバーを使用します。
 
-予定環境変数:
+環境変数:
 
 - `PORT`: 待受ポート
 - `DATABASE_PATH`: SQLiteファイル
+- `ADMIN_PIN`: LINE利用者管理・工数訂正・会社設定を開く管理者PIN
+- `ADMIN_SESSION_MINUTES`: PIN確認後の有効時間（既定30分）
+- `N8N_SHARED_SECRET`: n8nとのHMAC共有秘密鍵
+- `N8N_SIGNATURE_TOLERANCE_SECONDS`: n8n送信時刻の許容差（既定300秒）
 
 秘密値をファイル、Git、画面コードへ保存しません。
+
+## Phase2A接続
+
+1. n8nとアプリに同じ`N8N_SHARED_SECRET`を安全に設定する。
+2. n8nへWebhook中継、HMAC署名、同一EventIDでの再送を設定する。
+3. 管理画面で登録コードを発行し、従業員がLINEへ送信して紐付ける。
+4. n8nへ未終了確認の定期実行と本人・管理者通知を設定する。
+
+URL、Header、Request、Responseは`docs/15-phase2a-api-specification.md`、運用は`docs/14-phase2a-line-n8n-operations.md`を参照してください。SETUPは接続先仕様の正本にしません。
+
+Renderへn8nを新規配置する場合は`docs/17-render-n8n-line-setup-manual.md`を先頭から実施してください。
 
 ## 3. 初期移行の予定手順
 
