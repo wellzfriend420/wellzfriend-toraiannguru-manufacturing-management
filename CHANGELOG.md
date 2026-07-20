@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- n8n LINEイベントAPIで終了操作`finish`を受付し、既存の`end`との互換性を維持
+- 本文`event_id`指定時にHMAC署名対象Header `x-wf-event-id`との一致を検証
+- n8n向けリクエスト・レスポンス例とHTTPステータスをAPI仕様書へ明記
+
 ### Planned
 
 - Phase2B（通知運用の高度化、労務費・生産性・原価分析への本格反映）は未着手

@@ -20,13 +20,32 @@ Request共通項目:
 
 |項目|必須|内容|
 |---|---|---|
-|`action`|必須|`register`、`status`、`menu`、`start`、`break_start`、`resume`、`end`|
+|`action`|必須|`register`、`status`、`menu`、`start`、`break_start`、`resume`、`finish`。既存互換のため`end`も受付|
 |`line_user_id`|必須|LINE UserID|
 |`occurred_at`|任意|LINEイベント発生日時|
+|`event_id`|任意（推奨）|`x-wf-event-id`と同じ値。指定時に不一致なら400|
 |`registration_code`|登録時|管理画面で発行したコード|
 |`menu_code` / `menu_item_id`|開始時|選択した編集可能メニュー|
 
 Responseは`state`、`message`を基本とし、必要時に`menu`、`buttons`、`session`を返す。業務エラーは400で`state: error`を返す。受信本文は成否にかかわらず`line_events`へ保存する。
+
+成功時はHTTP 200で`{"data":{"state":"...","message":"..."}}`を返す。同一EventIDの再送はHTTP 200で、保存済み結果へ`duplicate: true`を加える。署名・時刻エラーはHTTP 401、HMAC共有鍵未設定は503、JSON・入力・業務状態エラーは400で`{"error":{"message":"..."}}`または`{"data":{"state":"error","message":"...","notify":["employee","manager"]}}`を返す。
+
+### n8n送信例
+
+開始:
+
+```json
+{"action":"start","menu_code":"boiled_lotus","line_user_id":"Uxxxxxxxx","occurred_at":"2026-07-20T10:00:00+09:00","event_id":"xxxxxxxx"}
+```
+
+終了:
+
+```json
+{"action":"finish","menu_code":null,"line_user_id":"Uxxxxxxxx","occurred_at":"2026-07-20T10:30:00+09:00","event_id":"xxxxxxxx"}
+```
+
+本文`event_id`とHeader `x-wf-event-id`には同一値を設定する。
 
 ## 未終了確認
 

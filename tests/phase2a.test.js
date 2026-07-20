@@ -35,11 +35,12 @@ test('Phase2AのPIN、HMAC、重複防止、LINE打刻、訂正履歴が動作�
     assert.equal(invalid.status,401);
     assert.deepEqual(db.prepare('SELECT status FROM line_events ORDER BY id').all().map(x=>x.status),['processed','duplicate','error']);
     await fetch(`${base}/api/v1/admin/company-settings`,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({break_mode:'line'})});
-    const started=await signed('event-start',{action:'start',line_user_id:'U-test',menu_code:'boiled_lotus',occurred_at:'2026-07-19T09:00:00+09:00'});assert.equal(started.status,200);
+    const started=await signed('event-start',{action:'start',line_user_id:'U-test',menu_code:'boiled_lotus',occurred_at:'2026-07-19T09:00:00+09:00',event_id:'event-start'});assert.equal(started.status,200);
+    const mismatched=await signed('event-mismatch',{action:'status',line_user_id:'U-test',event_id:'different-event'});assert.equal(mismatched.status,400);assert.match((await mismatched.json()).error.message,/EventID/);
     const blocked=await signed('event-second',{action:'start',line_user_id:'U-test',menu_code:'chips',occurred_at:'2026-07-19T09:10:00+09:00'});assert.equal(blocked.status,400);
     assert.equal((await signed('event-break',{action:'break_start',line_user_id:'U-test',occurred_at:'2026-07-19T10:00:00+09:00'})).status,200);
     assert.equal((await signed('event-resume',{action:'resume',line_user_id:'U-test',occurred_at:'2026-07-19T10:15:00+09:00'})).status,200);
-    const ended=await signed('event-end',{action:'end',line_user_id:'U-test',occurred_at:'2026-07-19T11:00:00+09:00'});assert.equal(ended.status,200);const endData=(await ended.json()).data;assert.match(endData.message,/作業105分・休憩15分/);
+    const ended=await signed('event-end',{action:'finish',menu_code:null,line_user_id:'U-test',occurred_at:'2026-07-19T11:00:00+09:00',event_id:'event-end'});assert.equal(ended.status,200);const endData=(await ended.json()).data;assert.match(endData.message,/作業105分・休憩15分/);
     const session=db.prepare("SELECT * FROM work_sessions WHERE external_id='event-start'").get();assert.equal(session.minutes,105);assert.equal(session.break_minutes,15);
     const correction=await fetch(`${base}/api/v1/admin/work-sessions/${session.id}`,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({break_minutes:10,reason:'休憩打刻の確認訂正'})});assert.equal(correction.status,200);assert.equal((await correction.json()).data.minutes,110);
     assert.equal(db.prepare('SELECT COUNT(*) total FROM work_session_corrections WHERE work_session_id=?').get(session.id).total,1);
