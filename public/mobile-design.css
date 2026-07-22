@@ -11,7 +11,7 @@
   color: #25352f;
   background: var(--ivory);
 }
-body { background: var(--ivory); padding-bottom: 76px; line-height: 1.55; }
+body { background: var(--ivory); padding-bottom: 0; line-height: 1.55; }
 .panel,.flow-card,.inventory { background: var(--paper); border-color: var(--line); box-shadow: 0 4px 18px #493e2f0b; }
 .panel { border-radius: 18px; }
 .flow-card,.inventory { border-radius: 16px; }
@@ -28,7 +28,7 @@ input,select { min-height: 48px; padding: .72rem .85rem; border-color: #cfc9be; 
 .operation-menu button.active { background: #214c3f; color: #fff; }
 .master-forms { display: block; }
 .compact-form { border: 0; border-radius: 0; padding: 4px 0; }
-.bottom-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: grid; grid-template-columns: repeat(4,1fr); padding: 7px max(8px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); background: rgba(255,253,249,.97); border-top: 1px solid #ddd8ce; box-shadow: 0 -5px 20px #493e2f12; }
+.bottom-navigation { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: none; grid-template-columns: repeat(4,1fr); padding: 7px max(8px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); background: rgba(255,253,249,.97); border-top: 1px solid #ddd8ce; box-shadow: 0 -5px 20px #493e2f12; }
 .bottom-navigation button { display: grid; place-items: center; gap: 1px; min-height: 50px; padding: 3px; background: transparent; color: #6c7974; border-radius: 10px; }
 .bottom-navigation button span { font-size: 21px; line-height: 1; }
 .bottom-navigation button small { font-size: 11px; }
@@ -50,6 +50,10 @@ input,select { min-height: 48px; padding: .72rem .85rem; border-color: #cfc9be; 
 .master-screen .management-card strong { font-size: 1.05rem; }
 .master-screen .management-card small { overflow-wrap: anywhere; }
 @media (max-width:760px) {
+  html { scroll-padding-bottom: 110px; }
+  body { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
+  .app-view { padding-bottom: 110px; }
+  .bottom-navigation { display: grid; }
   .master-screen { width: calc(100% - 24px); }
   .master-screen .management-card { align-items: stretch; }
   .master-screen .master-actions { display: grid!important; grid-template-columns: 1fr 1fr!important; width: 100%; }
