@@ -19,6 +19,7 @@ function fillOptions(){
     'finished-lots':masters.lots.filter(x=>x.item_type==='finished').map(x=>[x.id,`${x.item_name}／${x.lot_no}／残${x.available_quantity}${x.storage_unit}`]),'all-lots':masters.lots.map(x=>[x.id,`${x.item_name}／${x.lot_no}／帳簿${x.available_quantity}${x.storage_unit}`])
   };
   for(const select of $$('[data-options]'))select.innerHTML=(maps[select.dataset.options]??[]).map(x=>option(...x)).join('')||'<option value="">登録データなし</option>';
+  const employeeDepartment=$('#employeeMasterForm [name=department_id]');if(employeeDepartment)employeeDepartment.insertAdjacentHTML('afterbegin','<option value="">未設定</option>');
   const receiptItem=$('#receiptForm [name=item_id]'),receiptDepartment=$('#receiptForm [name=department_id]');receiptItem.onchange=()=>{receiptDepartment.value=masters.items.find(x=>x.id===Number(receiptItem.value))?.department_id??'';};receiptItem.onchange();
   renderMasterList();
 }
@@ -41,7 +42,7 @@ async function loadInventory(){const data=await request('/inventory'),target=$('
 
 $('#partnerMasterForm').onsubmit=event=>masterSubmit(event,'/masters/partners');
 $('#itemMasterForm').onsubmit=event=>masterSubmit(event,'/masters/items');
-$('#employeeMasterForm').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,raw=Object.fromEntries(new FormData(form)),id=raw.employee_id;raw.line_enabled=form.elements.line_enabled.checked;delete raw.employee_id;try{await request(id?`/masters/employees/${id}`:'/masters/employees',{method:id?'PATCH':'POST',body:JSON.stringify(raw)});$('#masterMessage').textContent=id?'従業員マスタを更新しました。':'従業員を登録しました。';resetEmployeeForm();await load();showMasterList();}catch(error){$('#masterMessage').textContent=error.message;}};
+$('#employeeMasterForm').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,raw=Object.fromEntries(new FormData(form)),id=raw.employee_id;raw.line_enabled=form.elements.line_enabled.checked;delete raw.employee_id;delete raw.code;try{const saved=await request(id?`/masters/employees/${id}`:'/masters/employees',{method:id?'PATCH':'POST',body:JSON.stringify(raw)});$('#masterMessage').textContent=id?'従業員マスタを更新しました。':`従業員を登録しました（コード：${saved.code}）。`;resetEmployeeForm();await load();showMasterList();}catch(error){$('#masterMessage').textContent=error.message;}};
 $('#flavorMasterForm').onsubmit=event=>masterSubmit(event,'/masters/flavors');
 $('#productMasterForm').onsubmit=event=>masterSubmit(event,'/masters/products');
 $('#processMasterForm').onsubmit=event=>masterSubmit(event,'/masters/processes');
@@ -53,7 +54,7 @@ function renderMasterList(){if(!masters)return;const target=$('#masterList'),ite
 $$('[data-master-tab]').forEach(button=>button.onclick=()=>{activeMaster=button.dataset.masterTab;showMasterList();});
 $('#masterAddButton').onclick=()=>showMasterEditor();
 $('#masterBackButton').onclick=()=>showMasterList();
-function editEmployee(id){const employee=masters.employees.find(x=>x.id===id),form=$('#employeeMasterForm');form.hidden=false;form.elements.employee_id.value=employee.id;form.elements.code.value=employee.code;form.elements.name.value=employee.name;form.elements.department_id.value=employee.department_id??'';form.elements.hourly_rate.value=employee.hourly_rate??0;form.elements.line_enabled.checked=Boolean(employee.line_enabled);form.elements.employment_status.value=employee.active?'active':'retired';form.querySelector('h3').textContent='従業員を編集';form.querySelector('button[type=submit],button:not([type])').textContent='従業員を更新';form.querySelector('button.secondary').hidden=true;form.scrollIntoView({behavior:'smooth',block:'start'});}
+function editEmployee(id){const employee=masters.employees.find(x=>x.id===id),form=$('#employeeMasterForm');form.hidden=false;form.elements.employee_id.value=employee.id;form.elements.name.value=employee.name;form.elements.department_id.value=employee.department_id??'';form.elements.hourly_rate.value=employee.hourly_rate??0;form.elements.line_enabled.checked=Boolean(employee.line_enabled);form.elements.employment_status.value=employee.active?'active':'retired';form.querySelector('h3').textContent=`従業員を編集（${employee.code}）`;form.querySelector('button[type=submit],button:not([type])').textContent='従業員を更新';form.querySelector('button.secondary').hidden=true;form.scrollIntoView({behavior:'smooth',block:'start'});}
 function resetEmployeeForm(){const form=$('#employeeMasterForm');form.reset();form.elements.employee_id.value='';form.elements.line_enabled.checked=true;form.elements.employment_status.value='active';form.querySelector('button[type=submit],button:not([type])').textContent='従業員を登録';form.querySelector('button.secondary').hidden=true;}
 
 load().catch(error=>{console.error(error);});
