@@ -26,6 +26,18 @@ header { justify-content: flex-start; gap: 14px; background: rgba(255,253,249,.9
 .period-switch { grid-template-columns: repeat(3,1fr); }
 .segmented-control button { width: 100%; min-height: 46px; }
 .field-help { display: block; margin-top: 5px; color: #6c7974; line-height: 1.5; }
+.registration-steps { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 0; margin: 18px 0; list-style: none; }
+.registration-steps li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 14px; background: #edf2ed; border: 1px solid #d7dfd9; border-radius: 14px; }
+.registration-steps li>span { display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%; color: #fff; background: #214c3f; font-weight: 700; }
+.registration-steps li div { display: grid; min-width: 0; }
+.registration-steps small { color: #6c7974; line-height: 1.4; }
+.registration-code-card { margin: 18px 0; padding: 18px; background: #f5f8f3; border: 2px solid #9db3a7; border-radius: 16px; }
+.registration-code-card>p:first-child { margin-top: 0; font-weight: 700; color: #214c3f; }
+.copy-code-row { display: flex; align-items: center; gap: 12px; }
+.copy-code-row strong { flex: 1; min-width: 0; padding: 13px; background: #fff; border: 1px dashed #91aa9e; border-radius: 11px; color: #173b31; font-size: clamp(1.2rem,5vw,1.65rem); letter-spacing: .08em; text-align: center; overflow-wrap: anywhere; user-select: all; }
+.copy-code-row button { flex: 0 0 auto; min-height: 48px; }
+.registration-code-card>small { display: block; margin-top: 10px; color: #5f6d68; }
+.copy-message { min-height: 1.5em; margin: 8px 0 0; color: #315d38; font-size: .9rem; }
 input,select { min-height: 48px; padding: .72rem .85rem; border-color: #cfc9be; border-radius: 11px; font-size: 16px; color: #25352f; }
 .metric { border-radius: 12px; }
 .drawer { z-index: 50; background: #214c3f; padding-bottom: 74px; }
@@ -66,6 +78,9 @@ input,select { min-height: 48px; padding: .72rem .85rem; border-color: #cfc9be; 
   header { min-height: 68px; padding-left: 16px; }
   .dashboard-controls { position: static; display: grid; grid-template-columns: 1fr; gap: 14px; padding: 14px 12px; }
   .control-group,.date-control { width: 100%; }
+  .registration-steps { grid-template-columns: 1fr; }
+  .copy-code-row { align-items: stretch; flex-direction: column; }
+  .copy-code-row button { width: 100%; }
   .master-screen { width: calc(100% - 24px); }
   .master-screen .management-card { align-items: stretch; }
   .master-screen .master-actions { display: grid!important; grid-template-columns: 1fr 1fr!important; width: 100%; }
