@@ -30,6 +30,8 @@ addColumn('shipment_lines','preparation_batch_id','INTEGER REFERENCES delivery_p
 addColumn('outsourcing_costs','product_id','INTEGER REFERENCES products(id)');
 addColumn('stocktakes','memo','TEXT');
 addColumn('employees','line_enabled','INTEGER NOT NULL DEFAULT 1');
+db.prepare('INSERT OR IGNORE INTO employee_code_sequences(id,last_number) VALUES(1,0)').run();
+db.prepare(`UPDATE employee_code_sequences SET last_number=MAX(last_number,COALESCE((SELECT MAX(id) FROM employees),0),COALESCE((SELECT MAX(CAST(SUBSTR(code,4) AS INTEGER)) FROM employees WHERE code GLOB 'EMP[0-9]*'),0)) WHERE id=1`).run();
 export const now = () => new Date().toISOString();
 export function transaction(fn) { db.exec('BEGIN IMMEDIATE'); try { const value=fn(); db.exec('COMMIT'); return value; } catch(error) { db.exec('ROLLBACK'); throw error; } }
 export function audit(actor, action, entityType, entityId, details={}) { db.prepare('INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,details_json,created_at) VALUES(?,?,?,?,?,?)').run(actor?.id??null,action,entityType,entityId==null?null:String(entityId),JSON.stringify(details),now()); }
