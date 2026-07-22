@@ -50,6 +50,7 @@ erDiagram
 |locations|id, code, name, department_id, active|
 |units|code, name, dimension, to_base_factor, decimal_places, active|
 |system_settings|key, value_json, updated_by, updated_at|
+|inspection_waste_reasons|id, code, name, detail_required, active, sort_order|
 
 既存IDを `legacy_id` として各移行対象マスタに保持し、名称ではなくIDで照合します。
 
@@ -57,13 +58,17 @@ erDiagram
 
 |テーブル|目的・主要列|
 |---|---|
-|receipt_batches|id, receipt_date, partner_id, department_id, status, source_type, external_id, memo|
-|receipt_lines|id, batch_id, item_id, lot_no, quantity, unit, amount, expiry_date|
+|receipt_batches|id, receipt_date（受入日）, partner_id（仕入先）, inspected_by_employee_id（担当者）, department_id, status, source_type, external_id, memo|
+|receipt_lines|id, batch_id, item_id（品目）, internal_lot_no, box_count, delivered_quantity（納品数量）, measured_quantity（実測数量）, inspection_waste_quantity（検品時破棄数量）, inspection_waste_reason（必須）, inventory_received_quantity（実測－検品破棄）, unit, amount, expiry_date|
+|purchase_cost_entries|id, receipt_line_id, purchase_amount, source_type（delivery_note）, entered_by, entered_at, corrected_at, version|
+|inventory_lot_cost_components|id, inventory_lot_id, cost_type, amount_per_unit, source_type, source_id|
 |process_runs|id, work_date, department_id, process_id, product_id（青果では必須）, input_item_id, output_item_id, input_lot_id, output_lot_no, before_qty, after_qty, unit, waste_qty, started_at, ended_at, break_minutes, status, memo|
 |individual_process_results|id, process_run_id, employee_id, input_lot_id, input_qty_g, waste_qty_g, output_qty_g, work_session_id, calculated_minutes, time_source(`line`,`manual_exception`), memo, status|
 |production_batches|id, production_date, department_id, lot_no, started_at, ended_at, status, source_type, external_id, memo|
 |production_consumptions|id, batch_id, item_id, inventory_lot_id, quantity, unit, consumption_type(`material`,`flavor`,`packaging`)|
 |production_outputs|id, batch_id, product_id, item_id, completed_weight_g, completed_count, count_unit, defect_qty, waste_qty|
+|delivery_preparation_batches|id, preparation_date, department_id, process_id, memo, created_by, created_at|
+|delivery_preparation_materials|id, batch_id, product_id, inventory_lot_id, material_item_id, used_quantity, prepared_product_quantity, material_cost_amount|
 |shipment_batches|id, delivery_date, physical_shipment_date(nullable), department_id, partner_id, shipment_type, settlement_type(`receivable`,`cash`), payment_status, due_date(nullable), status, external_id, memo|
 |shipment_lines|id, batch_id, product_id, inventory_lot_id, quantity, unit, unit_price, sales_amount, direct_cost_amount, gross_profit_amount, cost_snapshot_at|
 |shipment_cost_details|id, shipment_line_id, cost_type(`raw_material`,`flavor`,`packaging`,`outsourcing`,`other_direct`), source_type, source_id, amount, calculation_note|
@@ -79,9 +84,9 @@ erDiagram
 |stocktakes|id, stocktake_date, department_id, status, confirmed_by, confirmed_at|
 |stocktake_lines|id, stocktake_id, item_id, lot_id(nullable), book_qty, actual_qty, difference_qty, reason|
 |daily_closures|id, business_date, department_id, status, confirmed_by, confirmed_at, reopened_by, reopen_reason|
-|receivables|id, shipment_batch_id, partner_id, recognized_on, original_amount, outstanding_amount, due_date, status|
-|payments|id, partner_id, received_on, amount, payment_method, external_id, memo|
-|payment_allocations|id, payment_id, receivable_id, allocated_amount|
+|receivables|Phase1は売掛発生・残高・入金予定日の保持まで。id, shipment_batch_id, partner_id, recognized_on, original_amount, outstanding_amount, due_date, status|
+|payments|Phase2予約。id, partner_id, received_on, amount, payment_method, external_id, memo|
+|payment_allocations|Phase2予約。id, payment_id, receivable_id, allocated_amount|
 
 個人別加工実績から工程別集計を生成する場合も、個人行を原本として追跡できる関連を保持します。工程集計値を直接修正せず、修正は原本実績へ理由付きで行います。
 
@@ -91,8 +96,8 @@ erDiagram
 |---|---|
 |idempotency_keys|更新リクエストの重複排除|
 |external_events|LINE/OCR/n8nの受信原文、外部ID、処理状態、エラー。LINEはPhase1|
-|import_jobs / import_errors|CSV取込履歴と行別エラー|
-|export_history|CSV・帳票出力履歴|
+|import_jobs / import_errors|Phase2予約。CSV取込履歴と行別エラー|
+|export_history|Phase2予約。CSV・帳票出力履歴|
 |audit_logs|操作者、操作、対象、変更前後JSON、理由、日時|
 |schema_migrations|適用済みDB版|
 |backup_history|バックアップ・復元確認履歴|
@@ -112,7 +117,13 @@ erDiagram
 - 完成品の`completed_weight_g`と`completed_count`を別値として保持し、一方から他方を原本として上書きしない
 - `settlement_type=receivable`は売掛連携対象、`settlement_type=cash`は登録時点で入金済みとする
 - 出荷確定時の商品別直接原価を明細として保存し、後のマスタ変更で当時の粗利を無断変更しない
-- 包材仕入ロットの単価は`receipt_lines.amount ÷ receipt_lines.quantity`で算出し、数量0は禁止する
+- 包材仕入ロットの単価は`receipt_lines.amount ÷ receipt_lines.inventory_received_quantity`で算出し、数量0は禁止する
+- 原料の在庫加算数量は `measured_quantity - inspection_waste_quantity` とし、0未満を禁止する
+- 検品時破棄数量は必ず保存し、0より大きい場合だけでなく0の場合も検品記録に残す。`inspection_waste_reason`は必須とする
+- 検品破棄理由は`inspection_waste_reason_id`でマスタ参照し、「その他」は詳細テキスト必須、破棄数量0は「破棄なし」を自動設定する
+- `box_count`は管理情報であり、重量・在庫数量への自動換算に使用しない
+- 検品時破棄は`receipt_lines.inspection_waste_quantity`、加工時破棄は`individual_process_results.waste_qty_g`／`process_runs.waste_qty_g`として分離する
+- Phase1の`internal_lot_no`はサーバー側で一意に自動採番し、`inventory_lots`へ保存して在庫移動と紐付ける。利用者によるロット検索・追跡・逆引きはPhase2まで提供しない
 - チップス端数は廃棄移動ではなく、半製品在庫品目への正の在庫移動として記録する
 - 売上認識日は納品日とし、現金は同日回収済み、売掛は`receivables`を生成する
 - 売掛消込総額が売掛残高または入金額を超える更新は禁止する
@@ -143,12 +154,19 @@ erDiagram
 |れんこん|3|チップス加工|`primary_process`|
 |れんこん|4|納品準備|null|
 |れんこん|5|配達・納品|null|
-|青果|1|収穫|確認待ち|
-|青果|2|選別・袋詰め|確認待ち|
+|青果|1|入荷|null|
+|青果|2|加工|`primary_process`|
 |青果|3|納品準備|null|
 |青果|4|配達・納品|null|
 
 完成品と出荷は工程マスタ行ではなく、製造完成実績と納品実績から工程フロー終端へ表示する。
+
+## 商品別製造フロー
+
+- れんこんチップスは検品原料ロットを水煮加工し、水煮中間ロット、チップス半製品ロット、袋詰め完成品ロットの順に在庫移動を関連付ける。
+- 水煮は販売商品にせず、`processed_lotus`区分のチップス加工用中間在庫とする。
+- ねぎ・きゅうりは検品原料ロットを加工し、袋詰めを含む同一加工実績から完成品ロットを生成する。
+- Phase1は各ロットの自動採番・保存・在庫関連までを実装し、トレーサビリティ照会はPhase2とする。
 
 ## 労務費配賦
 
@@ -161,6 +179,10 @@ erDiagram
 ## 原料・外注費の拡張
 
 - 直接使用原料は製造消費ロット単価を直接原価へ計上する。
+- 原料仕入金額は管理者が納品書を基に`purchase_cost_entries`へ入力し、対象検品明細と原料在庫ロットへ紐付ける。検品票順を維持するため検品入力本体とは別トランザクションとし、未入力状態を判別可能にする。
+- 工程出力ロットへ入力ロットの原価内訳を歩留まり込みで引き継ぎ、完成品ロットでは原料・フレーバー・包材・直接資材の単位原価内訳を保持する。
+- 納品準備資材は在庫移動と資材使用明細を同一取引で作成し、対象商品数量当たり原価を出荷スナップショットへ引き継ぐ。
+- チップス加工、袋詰め、納品準備の労務費は`processes.cost_scope=department_shared`と`shared_cost_category`で部門共通管理し、SKU原価へ配賦しない。
 - 共通フレーバー原料に備えて、有効期間付きフレーバーレシピと構成明細を持つ。`allocation_rule`はヒアリング確定まで未設定を許可する。
 - 外注費は会社共通、部門、特定フレーバーの対象区分と関連IDを保持する。自動配賦式は持たず、部門損益・商品原価側が対象区分を参照できるようにする。
 
