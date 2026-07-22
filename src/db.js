@@ -29,6 +29,7 @@ addColumn('shipment_lines','gross_profit_rate','REAL');
 addColumn('shipment_lines','preparation_batch_id','INTEGER REFERENCES delivery_preparation_batches(id)');
 addColumn('outsourcing_costs','product_id','INTEGER REFERENCES products(id)');
 addColumn('stocktakes','memo','TEXT');
+addColumn('employees','line_enabled','INTEGER NOT NULL DEFAULT 1');
 export const now = () => new Date().toISOString();
 export function transaction(fn) { db.exec('BEGIN IMMEDIATE'); try { const value=fn(); db.exec('COMMIT'); return value; } catch(error) { db.exec('ROLLBACK'); throw error; } }
 export function audit(actor, action, entityType, entityId, details={}) { db.prepare('INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,details_json,created_at) VALUES(?,?,?,?,?,?)').run(actor?.id??null,action,entityType,entityId==null?null:String(entityId),JSON.stringify(details),now()); }

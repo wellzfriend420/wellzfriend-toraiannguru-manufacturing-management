@@ -20,4 +20,7 @@ await page.getByRole('button',{name:'その他の入力'}).click();
 await page.getByRole('button',{name:'検品入力'}).click();
 await page.locator('#receiptForm').waitFor();
 if((await page.evaluate(()=>document.documentElement.scrollWidth))>(await page.evaluate(()=>document.documentElement.clientWidth)))throw new Error('入力画面で横スクロールが発生しています');
+await page.getByRole('button',{name:'マスタ管理'}).click();
+await page.getByRole('heading',{name:'従業員マスタ'}).waitFor();
+for(const label of ['時給（労務費計算用）','LINE連携対象','在籍状態'])if(!(await page.locator('#employeeMasterForm').innerText()).includes(label))throw new Error(`従業員マスタ項目がありません: ${label}`);
 await browser.close();

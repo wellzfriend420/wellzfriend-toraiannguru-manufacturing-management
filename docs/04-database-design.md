@@ -39,7 +39,7 @@ erDiagram
 |---|---|
 |users|id, username, display_name, active, created_at, updated_at（認証用アカウントではなく操作記録用の内部実行者）|
 |departments|id, code(`lotus`,`produce`), name(`れんこん`,`青果`), active, sort_order|
-|employees|id, code, name, department_id, line_user_key(nullable), active|
+|employees|id, code, name, department_id, line_user_key(nullable), line_enabled, active（1=有効、0=退職）|
 |labor_cost_rates|id, employee_id, rate_type(`hourly`,`monthly_management`), salary_amount(nullable), weekday_count(nullable), hours_per_day, rate_amount, effective_from, effective_to, source_note|
 |processes|id, code, name, department_id, allocation_target, dashboard_role(nullable), standard_minutes, input_item_type, output_item_type, active, sort_order|
 |inventory_items|id, code, name, item_type(`raw`,`processed_lotus`,`semi_finished_chips`,`finished`,`flavor`,`packaging`), department_id, storage_unit, display_unit, inventory_managed, active|
@@ -53,6 +53,8 @@ erDiagram
 |inspection_waste_reasons|id, code, name, detail_required, active, sort_order|
 
 既存IDを `legacy_id` として各移行対象マスタに保持し、名称ではなくIDで照合します。
+
+従業員の時給は同じ従業員IDに紐づく`labor_cost_rates`へ有効期間付きで保存する。従業員画面から更新した場合も別の担当者マスタを作らない。検品担当者、個人加工、工数、LINE利用者、人別集計はすべて`employees.id`を外部キーとして使用する。
 
 ## 取引テーブル
 
