@@ -38,13 +38,27 @@ test('Phase2AのPIN、HMAC、重複防止、LINE打刻、訂正履歴が動作�
     const started=await signed('event-start',{action:'start',line_user_id:'U-test',menu_code:'boiled_lotus',occurred_at:'2026-07-19T09:00:00+09:00',event_id:'event-start'});assert.equal(started.status,200);
     const mismatched=await signed('event-mismatch',{action:'status',line_user_id:'U-test',event_id:'different-event'});assert.equal(mismatched.status,400);assert.match((await mismatched.json()).error.message,/EventID/);
     const blocked=await signed('event-second',{action:'start',line_user_id:'U-test',menu_code:'chips',occurred_at:'2026-07-19T09:10:00+09:00'});assert.equal(blocked.status,400);
-    assert.equal((await signed('event-break',{action:'break_start',line_user_id:'U-test',occurred_at:'2026-07-19T10:00:00+09:00'})).status,200);
-    assert.equal((await signed('event-resume',{action:'resume',line_user_id:'U-test',occurred_at:'2026-07-19T10:15:00+09:00'})).status,200);
-    const ended=await signed('event-end',{action:'finish',menu_code:null,line_user_id:'U-test',occurred_at:'2026-07-19T11:00:00+09:00',event_id:'event-end'});assert.equal(ended.status,200);const endData=(await ended.json()).data;assert.match(endData.message,/作業105分・休憩15分/);
-    const session=db.prepare("SELECT * FROM work_sessions WHERE external_id='event-start'").get();assert.equal(session.minutes,105);assert.equal(session.break_minutes,15);
+    const breakWhileWorking=await signed('event-break-blocked',{action:'break_start',line_user_id:'U-test',occurred_at:'2026-07-19T10:00:00+09:00'});assert.equal(breakWhileWorking.status,400);assert.match((await breakWhileWorking.json()).data.message,/作業を先に終了/);
+    const ended=await signed('event-end',{action:'finish',menu_code:null,line_user_id:'U-test',occurred_at:'2026-07-19T11:00:00+09:00',event_id:'event-end'});assert.equal(ended.status,200);const endData=(await ended.json()).data;assert.match(endData.message,/作業120分・休憩0分/);
+    const session=db.prepare("SELECT * FROM work_sessions WHERE external_id='event-start'").get();assert.equal(session.minutes,120);assert.equal(session.break_minutes,0);
+    const breakStarted=await signed('event-break',{action:'break_start',line_user_id:'U-test',occurred_at:'2026-07-19T11:00:00+09:00'});assert.equal(breakStarted.status,200);assert.equal((await breakStarted.json()).data.state,'break');
+    const workDuringBreak=await signed('event-work-during-break',{action:'start',line_user_id:'U-test',menu_code:'chips',occurred_at:'2026-07-19T11:05:00+09:00'});assert.equal(workDuringBreak.status,400);assert.match((await workDuringBreak.json()).data.message,/休憩を先に終了/);
+    const breakEnded=await signed('event-break-end',{action:'finish',line_user_id:'U-test',occurred_at:'2026-07-19T11:15:00+09:00'});assert.equal(breakEnded.status,200);assert.equal((await breakEnded.json()).data.state,'idle');
+    const breakRow=db.prepare("SELECT * FROM standalone_break_sessions WHERE external_id='event-break'").get();assert.equal(breakRow.minutes,15);assert.equal(breakRow.status,'completed');
     const correction=await fetch(`${base}/api/v1/admin/work-sessions/${session.id}`,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({break_minutes:10,reason:'休憩打刻の確認訂正'})});assert.equal(correction.status,200);assert.equal((await correction.json()).data.minutes,110);
     assert.equal(db.prepare('SELECT COUNT(*) total FROM work_session_corrections WHERE work_session_id=?').get(session.id).total,1);
-    const submenu=await signed('event-submenu',{action:'start',line_user_id:'U-test',menu_code:'outside_group'});assert.equal(submenu.status,200);assert.equal((await submenu.json()).data.state,'submenu');
+    const submenu=await signed('event-submenu',{action:'start',line_user_id:'U-test',menu_code:'outside_group'});assert.equal(submenu.status,200);
+    const submenuData=(await submenu.json()).data;assert.equal(submenuData.state,'submenu');
+    assert.deepEqual(submenuData.menu.map(x=>[x.code,x.label]),[
+      ['delivery_prep','納品準備'],
+      ['delivery','納品'],
+      ['outside','外回り'],
+      ['other_non_processing','その他業務'],
+    ]);
+    assert.equal(db.prepare("SELECT active FROM line_menu_items WHERE company_id=1 AND code='transport'").get()?.active??0,0);
+    assert.equal(db.prepare("SELECT active FROM line_menu_items WHERE company_id=1 AND code='purchase'").get()?.active??0,0);
+    const produceSubmenu=await signed('event-produce-submenu',{action:'start',line_user_id:'U-test',menu_code:'produce_group'});assert.equal(produceSubmenu.status,200);
+    assert.deepEqual((await produceSubmenu.json()).data.menu.map(x=>[x.code,x.label]),[['green_onion','ねぎ'],['cucumber','きゅうり']]);
     await fetch(`${base}/api/v1/admin/company-settings`,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({break_mode:'fixed'})});
     await fetch(`${base}/api/v1/admin/fixed-breaks`,{method:'POST',headers:adminHeaders,body:JSON.stringify({name:'夜間休憩',start_time:'23:30',end_time:'00:30'})});
     assert.equal((await signed('event-night-start',{action:'start',line_user_id:'U-test',menu_code:'boiled_lotus',occurred_at:'2026-07-19T23:00:00+09:00'})).status,200);

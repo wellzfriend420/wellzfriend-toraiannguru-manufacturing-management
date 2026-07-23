@@ -11,6 +11,8 @@ erDiagram
   companies ||--o{ external_events : deduplicates
   employees ||--o{ work_sessions : works
   work_sessions ||--o{ work_breaks : contains
+  companies ||--o{ standalone_break_sessions : owns
+  employees ||--o{ standalone_break_sessions : takes
   work_sessions ||--o{ work_session_corrections : corrected
   work_sessions ||--o{ work_session_links : linked
   individual_process_results ||--o{ work_session_links : aggregates

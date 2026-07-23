@@ -18,9 +18,10 @@ const safeEqual=(a,b)=>{const aa=Buffer.from(String(a)),bb=Buffer.from(String(b)
 function requireAdmin(req,res){const token=cookieMap(req).wf_admin,expires=adminTokens.get(token);if(!token||!expires||expires<Date.now()){if(token)adminTokens.delete(token);fail(res,new Error('管理者PINの確認が必要です'),401);return false;}return true;}
 function verifyN8n(req,text){const secret=process.env.N8N_SHARED_SECRET;if(!secret)throw Object.assign(new Error('N8N_SHARED_SECRETが未設定です'),{status:503});const eventId=required(req.headers['x-wf-event-id'],'イベントID'),timestamp=required(req.headers['x-wf-timestamp'],'送信時刻'),signature=required(req.headers['x-wf-signature'],'署名');const sent=Date.parse(timestamp);if(!Number.isFinite(sent)||Math.abs(Date.now()-sent)>Number(process.env.N8N_SIGNATURE_TOLERANCE_SECONDS??300)*1000)throw Object.assign(new Error('送信時刻が許容範囲外です'),{status:401});const expected=createHmac('sha256',secret).update(`${eventId}.${timestamp}.${text}`).digest('hex');if(!safeEqual(signature,expected))throw Object.assign(new Error('署名が不正です'),{status:401});return {eventId,timestamp};}
 function activeSession(employeeId){return one("SELECT w.*,p.name process_name,product.name product_name FROM work_sessions w JOIN processes p ON p.id=w.process_id LEFT JOIN products product ON product.id=w.product_id WHERE w.employee_id=? AND w.status IN ('running','working','break') ORDER BY w.id DESC LIMIT 1",employeeId);}
+function activeStandaloneBreak(companyId,employeeId){return one("SELECT * FROM standalone_break_sessions WHERE company_id=? AND employee_id=? AND status='running' ORDER BY id DESC LIMIT 1",companyId,employeeId);}
 function lineUser(companyId,lineUserId){return one('SELECT lu.*,e.name employee_name FROM line_users lu JOIN employees e ON e.id=lu.employee_id WHERE lu.company_id=? AND lu.line_user_id=? AND lu.active=1 AND e.active=1 AND e.line_enabled=1',companyId,lineUserId);}
 function menu(companyId,parentId=null){return rows(`SELECT m.id,m.code,m.label,m.parent_id,m.department_id,m.process_id,m.product_id FROM line_menu_items m WHERE m.company_id=? AND m.active=1 AND ${parentId==null?'m.parent_id IS NULL':'m.parent_id=?'} ORDER BY m.sort_order,m.id`,...(parentId==null?[companyId]:[companyId,parentId]));}
-function statePayload(companyId,user){const session=activeSession(user.employee_id);if(!session)return {state:'idle',message:'作業を選択してください',menu:menu(companyId)};if(session.status==='break')return {state:'break',message:'休憩中',session,buttons:['resume','end']};return {state:'working',message:`現在：${session.product_name??session.process_name}作業中`,session,buttons:['end','break_start']};}
+function statePayload(companyId,user){const breakSession=activeStandaloneBreak(companyId,user.employee_id);if(breakSession)return {state:'break',message:'休憩中',break_session:breakSession,buttons:['end']};const session=activeSession(user.employee_id);if(!session)return {state:'idle',message:'作業を選択してください',menu:menu(companyId)};return {state:'working',message:`現在：${session.product_name??session.process_name}作業中`,session,buttons:['end']};}
 function fixedBreakMinutes(companyId,startedAt,endedAt){const defs=rows('SELECT * FROM company_fixed_breaks WHERE company_id=? AND active=1 ORDER BY sort_order',companyId);if(!defs.length)return 0;const start=new Date(startedAt),end=new Date(endedAt),jst=9*60*60000,localStart=new Date(start.getTime()+jst),localEnd=new Date(end.getTime()+jst);let total=0;for(let cursor=new Date(Date.UTC(localStart.getUTCFullYear(),localStart.getUTCMonth(),localStart.getUTCDate()));cursor<=localEnd;cursor.setUTCDate(cursor.getUTCDate()+1)){const day=cursor.toISOString().slice(0,10);for(const def of defs){let bStart=new Date(`${day}T${def.start_time}:00+09:00`),bEnd=new Date(`${day}T${def.end_time}:00+09:00`);if(bEnd<=bStart)bEnd=new Date(bEnd.getTime()+86400000);const overlap=Math.max(0,Math.min(end,bEnd)-Math.max(start,bStart));total+=overlap/60000;}}return Math.round(total);}
 function closeOpenBreak(sessionId,endedAt){const open=one('SELECT * FROM work_breaks WHERE work_session_id=? AND ended_at IS NULL ORDER BY id DESC LIMIT 1',sessionId);if(open){const minutes=Math.max(0,workMinutes(open.started_at,endedAt,0));db.prepare('UPDATE work_breaks SET ended_at=?,minutes=?,updated_at=? WHERE id=?').run(endedAt,minutes,now(),open.id);}}
 function calculateSessionCost(sessionId,employeeId,processId,workDate,minutes){const rate=one('SELECT * FROM labor_cost_rates WHERE employee_id=? AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1',employeeId,workDate,workDate);db.prepare('DELETE FROM work_session_costs WHERE work_session_id=?').run(sessionId);if(!rate)return null;const hourly=laborRate({rateType:rate.rate_type,rateAmount:rate.rate_amount,salaryAmount:rate.salary_amount,weekdayCount:rate.weekday_count,hoursPerDay:rate.hours_per_day}),amount=Math.round(hourly*minutes/60);db.prepare('INSERT INTO work_session_costs(work_session_id,labor_cost_rate_id,process_id,minutes,labor_cost_amount,calculated_at) VALUES(?,?,?,?,?,?)').run(sessionId,rate.id,processId,minutes,amount,now());return amount;}
@@ -48,7 +49,9 @@ function processLineEvent(company,eventId,input){
   if(!user)throw new Error('従業員登録が必要です');
   if(action==='status'||action==='menu')return statePayload(company.id,user);
   const current=activeSession(user.employee_id);
+  const currentBreak=activeStandaloneBreak(company.id,user.employee_id);
   if(action==='start'){
+    if(currentBreak)throw new Error('休憩を先に終了してください');
     if(current)throw new Error(current.status==='break'?'休憩中は他工程を開始できません':'進行中の作業を先に終了してください');
     const item=one('SELECT * FROM line_menu_items WHERE company_id=? AND (id=? OR code=?) AND active=1',company.id,input.menu_item_id??-1,input.menu_code??'');
     if(!item)throw new Error('作業メニューがありません');
@@ -61,21 +64,26 @@ function processLineEvent(company,eventId,input){
     queueNotification(company.id,Number(result.lastInsertRowid),'work_started','employee',lineId,{message:`${item.label}を開始しました`});
     return statePayload(company.id,user);
   }
-  if(!current)throw new Error('進行中の作業がありません');
   if(action==='break_start'){
-    if(current.status==='break')throw new Error('すでに休憩中です');
+    if(current)throw new Error('作業を先に終了してください');
+    if(currentBreak)throw new Error('すでに休憩中です');
     if(companySettings.break_mode!=='line')throw new Error('会社設定がLINE休憩打刻ではありません');
-    db.prepare("INSERT INTO work_breaks(work_session_id,started_at,source_type,created_at,updated_at) VALUES(?,?,'line',?,?)").run(current.id,input.occurred_at??now(),now(),now());
-    db.prepare("UPDATE work_sessions SET status='break',updated_at=? WHERE id=?").run(now(),current.id);
+    db.prepare("INSERT INTO standalone_break_sessions(company_id,employee_id,started_at,source_type,status,external_id,created_at,updated_at) VALUES(?,?,?,'line','running',?,?,?)").run(company.id,user.employee_id,input.occurred_at??now(),eventId,now(),now());
     return statePayload(company.id,user);
   }
   if(action==='resume'){
-    if(current.status!=='break')throw new Error('休憩中ではありません');
-    closeOpenBreak(current.id,input.occurred_at??now());
-    db.prepare("UPDATE work_sessions SET status='working',updated_at=? WHERE id=?").run(now(),current.id);
-    return statePayload(company.id,user);
+    if(!currentBreak)throw new Error('休憩中ではありません');
+    const endedAt=input.occurred_at??now(),minutes=Math.max(0,workMinutes(currentBreak.started_at,endedAt,0));
+    db.prepare("UPDATE standalone_break_sessions SET ended_at=?,minutes=?,status='completed',updated_at=? WHERE id=?").run(endedAt,minutes,now(),currentBreak.id);
+    return {state:'idle',message:`休憩を終了しました（${minutes}分）`,menu:menu(company.id)};
   }
   if(action==='end'){
+    if(currentBreak){
+      const endedAt=input.occurred_at??now(),minutes=Math.max(0,workMinutes(currentBreak.started_at,endedAt,0));
+      db.prepare("UPDATE standalone_break_sessions SET ended_at=?,minutes=?,status='completed',updated_at=? WHERE id=?").run(endedAt,minutes,now(),currentBreak.id);
+      return {state:'idle',message:`休憩を終了しました（${minutes}分）`,menu:menu(company.id)};
+    }
+    if(!current)throw new Error('進行中の作業がありません');
     const result=completeSession(current,input.occurred_at??now(),companySettings);
     queueNotification(company.id,current.id,'work_ended','employee',lineId,{message:`作業を終了しました（${result.minutes}分）`});
     return {state:'idle',message:`作業を終了しました（作業${result.minutes}分・休憩${result.break_minutes}分）`,menu:menu(company.id)};

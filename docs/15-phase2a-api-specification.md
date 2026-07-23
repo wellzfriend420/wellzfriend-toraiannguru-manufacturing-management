@@ -27,6 +27,10 @@ Request共通項目:
 |`registration_code`|登録時|管理画面で発行したコード|
 |`menu_code` / `menu_item_id`|開始時|選択した編集可能メニュー|
 
+`outside_group`を選択した場合は`state: "submenu"`とし、`menu`へ「納品準備」「納品」「外回り」「その他業務」の4項目を返す。旧「配達」は「納品」、旧「仕入れ」は「外回り」へ集約し、独立メニューとして返さない。
+
+`produce_group`を選択した場合は`state: "submenu"`とし、`menu`へ「ねぎ」「きゅうり」を返す。`break_start`は待機中のみ成功し、作業中は終了を要求する。`finish`は作業中なら作業を、休憩中なら独立休憩を終了して`idle`を返す。
+
 Responseは`state`、`message`を基本とし、必要時に`menu`、`buttons`、`session`を返す。業務エラーは400で`state: error`を返す。受信本文は成否にかかわらず`line_events`へ保存する。
 
 成功時はHTTP 200で`{"data":{"state":"...","message":"..."}}`を返す。同一EventIDの再送はHTTP 200で、保存済み結果へ`duplicate: true`を加える。署名・時刻エラーはHTTP 401、HMAC共有鍵未設定は503、JSON・入力・業務状態エラーは400で`{"error":{"message":"..."}}`または`{"data":{"state":"error","message":"...","notify":["employee","manager"]}}`を返す。

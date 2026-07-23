@@ -2,7 +2,7 @@
 
 ## Phase2A追加
 
-`companies`、`company_settings`、`company_fixed_breaks`、`line_users`、`line_registration_codes`、`line_menu_items`、`work_breaks`、`line_events`、`external_events`、`work_session_corrections`、`work_session_links`、`notification_logs`を追加する。`line_events`は受信ごとの生データ監査、`external_events`はEventIDの冪等制御を担当する。既存行は初期会社「とらいアンぐる」へ自動所属する。工数原本と加工実績は多対多のリンク表で結び、再計算可能性を維持する。
+`companies`、`company_settings`、`company_fixed_breaks`、`line_users`、`line_registration_codes`、`line_menu_items`、`work_breaks`、`standalone_break_sessions`、`line_events`、`external_events`、`work_session_corrections`、`work_session_links`、`notification_logs`を追加する。`line_events`は受信ごとの生データ監査、`external_events`はEventIDの冪等制御を担当する。既存行は初期会社「とらいアンぐる」へ自動所属する。工数原本と加工実績は多対多のリンク表で結び、再計算可能性を維持する。LINE打刻の休憩は`standalone_break_sessions`へ独立保存し、労務時間・労務費へ含めない。`work_breaks`は既存履歴と固定休憩・管理者訂正との互換性維持に使用する。
 
 ## 方針
 

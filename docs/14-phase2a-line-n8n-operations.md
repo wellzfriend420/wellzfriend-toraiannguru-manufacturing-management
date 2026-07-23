@@ -26,10 +26,10 @@ LINEは現場入力、えんちゃん（n8n）はWebhook受付・API中継・再
 - `status` / `menu`: 現在状態と選択肢を取得
 - `start`: `menu_code`または`menu_item_id`で開始
 - `break_start`: 休憩開始
-- `resume`: 再開
+- `resume`: 旧連携互換（休憩終了として処理。新しいリッチメニューでは使用しない）
 - `end`: 終了
 
-レスポンスの`state`、`message`、`menu`、`buttons`をn8nでLINE Flex Messageまたはクイックリプライへ変換する。「納品準備・外回り」は`submenu`を返すため、返却された子メニューを表示する。
+レスポンスの`state`、`message`、`menu`、`buttons`をn8nでLINE Flex Messageまたはクイックリプライへ変換する。「青果加工」は「ねぎ」「きゅうり」、「納品準備・納品」は「納品準備」「納品」「外回り」「その他業務」を返す。「配達」は「納品」へ、「仕入れ」は「外回り」へ集約する。作業中・休憩中はいずれも終了だけを表示する。
 
 ## 初期運用
 

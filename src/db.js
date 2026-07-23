@@ -65,9 +65,21 @@ const menuInsert=db.prepare('INSERT OR IGNORE INTO line_menu_items(company_id,co
 const processByCode=code=>db.prepare('SELECT id,department_id FROM processes WHERE code=?').get(code);
 const productByCode=code=>db.prepare('SELECT id FROM products WHERE code=?').get(code);
 const seedMenu=(code,label,processCode,productCode,sort)=>{const p=processCode?processByCode(processCode):null;menuInsert.run(defaultCompanyId,code,label,null,p?.department_id??null,p?.id??null,productCode?productByCode(productCode)?.id??null:null,sort,now(),now());};
-seedMenu('boiled_lotus','れんこん水煮','lotus_boiled',null,1);seedMenu('chips','チップス加工','lotus_chips',null,2);seedMenu('green_onion','ねぎ','produce_sort_pack','produce_green_onion',3);seedMenu('cucumber','きゅうり','produce_sort_pack','produce_cucumber',4);
-menuInsert.run(defaultCompanyId,'outside_group','納品準備・外回り',null,null,null,null,5,now(),now());
+seedMenu('boiled_lotus','れんこん水煮','lotus_boiled',null,1);seedMenu('chips','チップス加工','lotus_chips',null,2);
+menuInsert.run(defaultCompanyId,'produce_group','青果加工',null,null,null,null,3,now(),now());
+const produceParent=db.prepare("SELECT id FROM line_menu_items WHERE company_id=? AND code='produce_group'").get(defaultCompanyId).id;
+for(const [code,label,productCode,sort] of [['green_onion','ねぎ','produce_green_onion',1],['cucumber','きゅうり','produce_cucumber',2]]) {
+  const p=processByCode('produce_sort_pack');
+  menuInsert.run(defaultCompanyId,code,label,produceParent,p.department_id,p.id,productByCode(productCode)?.id??null,sort,now(),now());
+  db.prepare('UPDATE line_menu_items SET label=?,parent_id=?,department_id=?,process_id=?,product_id=?,active=1,sort_order=?,updated_at=? WHERE company_id=? AND code=?').run(label,produceParent,p.department_id,p.id,productByCode(productCode)?.id??null,sort,now(),defaultCompanyId,code);
+}
+menuInsert.run(defaultCompanyId,'outside_group','納品準備・納品',null,null,null,null,5,now(),now());
 const outsideParent=db.prepare("SELECT id FROM line_menu_items WHERE company_id=? AND code='outside_group'").get(defaultCompanyId).id;
-for(const [code,label,processCode,sort] of [['delivery_prep','納品準備','lotus_delivery_prep',1],['delivery','納品','lotus_delivery',2],['transport','配達','lotus_delivery',3],['outside','外回り','lotus_delivery',4],['purchase','仕入れ','lotus_receipt',5],['other_non_processing','その他加工外業務','lotus_delivery_prep',6]]){const p=processByCode(processCode);menuInsert.run(defaultCompanyId,code,label,outsideParent,p.department_id,p.id,null,sort,now(),now());}
+for(const [code,label,processCode,sort] of [['delivery_prep','納品準備','lotus_delivery_prep',1],['delivery','納品','lotus_delivery',2],['outside','外回り','lotus_delivery',3],['other_non_processing','その他業務','lotus_delivery_prep',4]]){const p=processByCode(processCode);menuInsert.run(defaultCompanyId,code,label,outsideParent,p.department_id,p.id,null,sort,now(),now());}
+db.prepare("UPDATE line_menu_items SET label='納品準備・納品',active=1,sort_order=5,updated_at=? WHERE company_id=? AND code='outside_group'").run(now(),defaultCompanyId);
+for(const [code,label,sort] of [['delivery_prep','納品準備',1],['delivery','納品',2],['outside','外回り',3],['other_non_processing','その他業務',4]]){
+  db.prepare('UPDATE line_menu_items SET label=?,parent_id=?,active=1,sort_order=?,updated_at=? WHERE company_id=? AND code=?').run(label,outsideParent,sort,now(),defaultCompanyId,code);
+}
+db.prepare("UPDATE line_menu_items SET active=0,updated_at=? WHERE company_id=? AND code IN ('transport','purchase')").run(now(),defaultCompanyId);
 
 export { databasePath };
