@@ -14,6 +14,7 @@ if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='exc
 if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='company_id'").get()) db.exec('ALTER TABLE work_sessions ADD COLUMN company_id INTEGER REFERENCES companies(id)');
 if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='product_id'").get()) db.exec('ALTER TABLE work_sessions ADD COLUMN product_id INTEGER REFERENCES products(id)');
 if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='break_mode'").get()) db.exec('ALTER TABLE work_sessions ADD COLUMN break_mode TEXT');
+if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='is_test'").get()){db.exec('ALTER TABLE work_sessions ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0');db.exec('UPDATE work_sessions SET is_test=1');db.exec('DELETE FROM work_session_costs WHERE work_session_id IN (SELECT id FROM work_sessions WHERE is_test=1)');}
 const addColumn=(table,column,definition)=>{if(!db.prepare(`SELECT 1 FROM pragma_table_info('${table}') WHERE name=?`).get(column))db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);};
 addColumn('processes','cost_scope',"TEXT NOT NULL DEFAULT 'department_shared'");
 addColumn('processes','shared_cost_category','TEXT');
