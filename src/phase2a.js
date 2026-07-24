@@ -51,8 +51,8 @@ function processLineEvent(company,eventId,input){
   const current=activeSession(user.employee_id);
   const currentBreak=activeStandaloneBreak(company.id,user.employee_id);
   if(action==='start'){
-    if(currentBreak)throw new Error('休憩を先に終了してください');
-    if(current)throw new Error(current.status==='break'?'休憩中は他工程を開始できません':'進行中の作業を先に終了してください');
+    if(currentBreak)return {...statePayload(company.id,user),message:'休憩中です。先に休憩を終了してください'};
+    if(current)return {...statePayload(company.id,user),message:'進行中の作業を先に終了してください'};
     const item=one('SELECT * FROM line_menu_items WHERE company_id=? AND (id=? OR code=?) AND active=1',company.id,input.menu_item_id??-1,input.menu_code??'');
     if(!item)throw new Error('作業メニューがありません');
     const children=menu(company.id,item.id);
