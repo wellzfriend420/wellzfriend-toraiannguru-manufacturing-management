@@ -47,5 +47,15 @@ test('認証なしでダッシュボードを取得できる', async () => {
     const preparationResponse=await fetch(`${base}/api/v1/delivery-preparations`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({preparation_date:'2026-07-19',department_id:produce.id,materials:[{product_id:cucumber.id,inventory_lot_id:packagingLot,used_quantity:100,prepared_product_quantity:100}]})});assert.equal(preparationResponse.status,201);const preparation=(await preparationResponse.json()).data;
     const shipmentResponse=await fetch(`${base}/api/v1/shipments`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({delivery_date:'2026-07-19',department_id:produce.id,partner_id:partnerId,settlement_type:'cash',lines:[{product_id:cucumber.id,inventory_lot_id:production.outputs[0].lot_id,preparation_batch_id:preparation.id,quantity:10,unit_price:200}]})});assert.equal(shipmentResponse.status,201);const shipment=(await shipmentResponse.json()).data.lines[0];assert.equal(shipment.sales_amount,2000);assert.equal(shipment.direct_cost_amount,1100);assert.equal(shipment.gross_profit_amount,900);assert.equal(shipment.gross_profit_rate,0.45);
     assert.deepEqual(db.prepare('SELECT cost_type,amount FROM shipment_cost_details WHERE shipment_line_id=? ORDER BY cost_type').all(shipment.id).map(x=>({...x})),[{cost_type:'packaging',amount:100},{cost_type:'raw_material',amount:1000}]);
+    const stockByLot=id=>Number(db.prepare('SELECT COALESCE(SUM(quantity_delta),0) quantity FROM inventory_movements WHERE lot_id=?').get(id).quantity);
+    assert.equal(stockByLot(receivedRawLot),0);
+    assert.equal(stockByLot(packagingLot),0);
+    assert.equal(stockByLot(production.outputs[0].lot_id),90);
+    const profitability=await (await fetch(`${base}/api/v1/dashboard/product-profitability?department=produce&from=2026-07-19&to=2026-07-19`)).json();
+    assert.equal(profitability.data.sales_total,2000);
+    assert.equal(profitability.data.products[0].direct_cost_amount,1100);
+    assert.equal(profitability.data.products[0].gross_profit_amount,900);
+    const insufficientShipment=await fetch(`${base}/api/v1/shipments`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({delivery_date:'2026-07-19',department_id:produce.id,partner_id:partnerId,settlement_type:'cash',lines:[{product_id:cucumber.id,inventory_lot_id:production.outputs[0].lot_id,quantity:91,unit_price:200}]})});assert.equal(insufficientShipment.status,400);
+    assert.equal(stockByLot(production.outputs[0].lot_id),90);
   } finally { await new Promise(resolve=>server.close(resolve)); }
 });
