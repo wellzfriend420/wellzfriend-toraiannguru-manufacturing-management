@@ -13,7 +13,7 @@ async function load(){masters=await request('/masters');fillOptions();for(const 
 function fillOptions(){
   const maps={
     departments:masters.departments.map(x=>[x.id,x.name]),partners:masters.partners.filter(x=>x.active).map(x=>[x.id,x.name]),employees:masters.employees.filter(x=>x.active).map(x=>[x.id,x.name]),products:masters.products.filter(x=>x.active).map(x=>[x.id,x.name]),
-    'raw-items':masters.items.filter(x=>x.active&&x.item_type==='raw').map(x=>[x.id,x.name]),'finished-items':masters.items.filter(x=>x.active&&x.item_type==='finished').map(x=>[x.id,x.name]),
+    'raw-items':masters.items.filter(x=>x.active&&x.item_type==='raw').map(x=>[x.id,x.name]),'opening-items':masters.items.filter(x=>x.active&&['raw','packaging','flavor'].includes(x.item_type)).map(x=>[x.id,`${x.name}（${x.item_type==='raw'?'原料':x.item_type==='packaging'?'包材':'フレーバー'}）`]),'finished-items':masters.items.filter(x=>x.active&&x.item_type==='finished').map(x=>[x.id,x.name]),
     'waste-reasons':masters.inspection_waste_reasons.map(x=>[x.id,x.name]),'available-lots':masters.lots.map(x=>[x.id,`${x.item_name}／${x.lot_no}／残${x.available_quantity}${x.storage_unit}`]),
     'material-lots':masters.lots.filter(x=>['packaging','flavor'].includes(x.item_type)).map(x=>[x.id,`${x.item_name}／残${x.available_quantity}${x.storage_unit}`]),
     'finished-lots':masters.lots.filter(x=>x.item_type==='finished').map(x=>[x.id,`${x.item_name}／${x.lot_no}／残${x.available_quantity}${x.storage_unit}`]),'all-lots':masters.lots.map(x=>[x.id,`${x.item_name}／${x.lot_no}／帳簿${x.available_quantity}${x.storage_unit}`])
@@ -21,12 +21,20 @@ function fillOptions(){
   for(const select of $$('[data-options]'))select.innerHTML=(maps[select.dataset.options]??[]).map(x=>option(...x)).join('')||'<option value="">登録データなし</option>';
   const employeeDepartment=$('#employeeMasterForm [name=department_id]');if(employeeDepartment)employeeDepartment.insertAdjacentHTML('afterbegin','<option value="">未設定</option>');
   const receiptItem=$('#receiptForm [name=item_id]'),receiptDepartment=$('#receiptForm [name=department_id]');receiptItem.onchange=()=>{receiptDepartment.value=masters.items.find(x=>x.id===Number(receiptItem.value))?.department_id??'';};receiptItem.onchange();
+  bindDepartmentSelectors();
   renderMasterList();
+}
+function bindDepartmentSelectors(){
+  for(const formId of ['productionForm','preparationForm','shipmentForm']){
+    const form=$(`#${formId}`),department=form?.elements.department_id;if(!department)continue;
+    const refresh=()=>{const departmentId=Number(department.value),product=form.elements.product_id;if(product)product.innerHTML=masters.products.filter(x=>x.active&&x.department_id===departmentId).map(x=>option(x.id,x.name)).join('')||'<option value="">対象商品なし</option>';if(formId==='productionForm'){form.elements.output_item_id.innerHTML=masters.items.filter(x=>x.active&&x.item_type==='finished'&&x.department_id===departmentId).map(x=>option(x.id,x.name)).join('')||'<option value="">対象完成品なし</option>';form.elements.consumption_lot_id.innerHTML=masters.lots.filter(x=>x.department_id==null||x.department_id===departmentId).map(x=>option(x.id,`${x.item_name}／${x.lot_no}／残${x.available_quantity}${x.storage_unit}`)).join('')||'<option value="">対象ロットなし</option>';}if(formId==='shipmentForm')form.elements.inventory_lot_id.innerHTML=masters.lots.filter(x=>x.item_type==='finished'&&x.department_id===departmentId).map(x=>option(x.id,`${x.item_name}／${x.lot_no}／残${x.available_quantity}${x.storage_unit}`)).join('')||'<option value="">対象完成品なし</option>';};
+    department.onchange=refresh;refresh();
+  }
 }
 function message(form,text,error=false){const target=form.querySelector('.form-message');target.textContent=text;target.classList.toggle('error',error);}
 async function submit(form,path,payload){message(form,'登録しています…');try{const result=await request(path,{method:'POST',body:JSON.stringify(payload)});message(form,'登録しました。');await load();return result;}catch(error){message(form,error.message,true);throw error;}}
 
-async function openOperation(name){$$('.operation-panel').forEach(x=>x.hidden=true);const id=`operation${name.split('-').map(x=>x[0].toUpperCase()+x.slice(1)).join('')}`;$(`#${id}`).hidden=false;$$('[data-operation]').forEach(x=>x.classList.toggle('active',x.dataset.operation===name));if(name==='inventory')await loadInventory();if(name==='masters')showMasterList();}
+async function openOperation(name){$$('.operation-panel').forEach(x=>x.hidden=true);const operationName=name==='inventory-opening'?'inventory':name,id=`operation${operationName.split('-').map(x=>x[0].toUpperCase()+x.slice(1)).join('')}`;$(`#${id}`).hidden=false;$$('[data-operation]').forEach(x=>x.classList.toggle('active',x.dataset.operation===name));if(operationName==='inventory'){showInventoryPanel(name==='inventory-opening'?'opening':'list');await loadInventory();}if(name==='masters')showMasterList();if(innerWidth<=760)$(`#${id}`).scrollIntoView({behavior:'smooth',block:'start'});}
 $$('[data-operation]').forEach(button=>button.onclick=()=>openOperation(button.dataset.operation));
 window.openPhase1Operation=openOperation;
 
@@ -38,7 +46,10 @@ $('#preparationForm').onsubmit=async event=>{event.preventDefault();const form=e
 async function loadPreparations(){const data=await request('/delivery-preparations');$('#shipmentPreparation').innerHTML='<option value="">なし</option>'+data.preparations.map(x=>option(x.id,`${x.preparation_date}／${x.product_name}／資材原価${Number(x.material_cost_amount).toLocaleString()}円`)).join('');}
 $('#shipmentForm').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,x=Object.fromEntries(new FormData(form));const outsourcing=Number(x.direct_outsourcing_amount)>0?[{amount:x.direct_outsourcing_amount,description:x.direct_outsourcing_description||'直接外注費'}]:[],line={product_id:x.product_id,inventory_lot_id:x.inventory_lot_id,preparation_batch_id:x.preparation_batch_id||null,quantity:x.quantity,unit_price:x.unit_price,direct_outsourcing:outsourcing};const payload={delivery_date:x.delivery_date,department_id:x.department_id,partner_id:x.partner_id,settlement_type:x.settlement_type,due_date:x.due_date||null,memo:x.memo,lines:[line]};try{const out=await submit(form,'/shipments',payload),lineOut=out.lines[0];message(form,`売上${lineOut.sales_amount.toLocaleString()}円／直接原価${lineOut.direct_cost_amount.toLocaleString()}円／粗利${lineOut.gross_profit_amount.toLocaleString()}円で保存しました。`);}catch{}};
 $('#stocktakeForm').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,x=Object.fromEntries(new FormData(form));try{await submit(form,'/stocktakes',{stocktake_date:x.stocktake_date,department_id:x.department_id,memo:x.memo,lines:[{lot_id:x.lot_id,actual_qty:x.actual_qty,reason:x.reason}]});}catch{}};
+$('#openingInventoryForm').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,x=Object.fromEntries(new FormData(form));for(const key of ['quantity','unit_cost','amount'])if(x[key]==='')x[key]=null;try{const out=await submit(form,'/inventory/opening-balances',x);message(form,`初期在庫を登録しました。内部ロット：${out.lot_no}`);await loadInventory();}catch{}};
 async function loadInventory(){const data=await request('/inventory'),target=$('#inventoryList');target.innerHTML=data.items.length?data.items.map(x=>`<article class="management-card"><div><strong>${esc(x.name)}</strong><small>${esc(x.lot_no)}／${esc(x.item_type)}</small></div><strong>${Number(x.quantity).toLocaleString()} ${esc(x.storage_unit)}</strong></article>`).join(''):'<p>在庫はありません。</p>';}
+function showInventoryPanel(name){$('#inventoryListPanel').hidden=false;$('#operationInventory').classList.toggle('inventory-mode-opening',name==='opening');$('#openingInventoryForm').hidden=name!=='opening';$$('[data-inventory-action]').forEach(x=>x.classList.toggle('active',x.dataset.inventoryAction===name));if(name==='stocktake'){openOperation('stocktake');$('#pageTitle').textContent='棚卸・在庫調整';}}
+$$('[data-inventory-action]').forEach(button=>button.onclick=()=>showInventoryPanel(button.dataset.inventoryAction));
 
 $('#partnerMasterForm').onsubmit=event=>masterSubmit(event,'/masters/partners');
 $('#itemMasterForm').onsubmit=event=>masterSubmit(event,'/masters/items');

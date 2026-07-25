@@ -11,6 +11,7 @@
 - 金額は円整数、業務日はJSTの`YYYY-MM-DD`、監査日時はUTC ISO 8601とする。
 - 物理削除せず、取消・無効化・訂正履歴を残す。
 - 在庫残は `inventory_movements` の合計を正本とし、キャッシュは再構築可能にする。
+- 運用開始時は`inventory_opening_entries`を原本として`OPEN-YYYYMMDD-N`形式の内部ロットを発行する。数量がある場合だけ`inventory_movements`へ`opening_balance`を記録し、単価のみの先行登録では数量移動を作らない。
 - Dashboard値と集計値は原本テーブルから再計算可能にし、直接編集可能な集計正本テーブルを作らない。
 
 ## 関係概要
@@ -84,6 +85,7 @@ erDiagram
 |outsourcing_costs|id, occurred_on, amount, scope_type(`company`,`department`,`flavor`), department_id(nullable), flavor_id(nullable), source_id, memo|
 |inventory_lots|id, item_id, lot_no, location_id, received_or_made_on, unit_cost, expires_on, created_at|
 |inventory_movements|id, lot_id, occurred_at, business_date, movement_type, quantity_delta_base, source_type, source_id, department_id, unit_cost, memo|
+|inventory_opening_entries|id, item_id, inventory_lot_id, quantity(nullable), unit_cost(nullable), amount(nullable), memo, registered_at, created_by, created_at|
 |stocktakes|id, stocktake_date, department_id, status, confirmed_by, confirmed_at|
 |stocktake_lines|id, stocktake_id, item_id, lot_id(nullable), book_qty, actual_qty, difference_qty, reason|
 |daily_closures|id, business_date, department_id, status, confirmed_by, confirmed_at, reopened_by, reopen_reason|

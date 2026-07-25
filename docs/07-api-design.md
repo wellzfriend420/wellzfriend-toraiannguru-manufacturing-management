@@ -69,6 +69,7 @@ Dashboard系APIはGETのみとし、専用の更新APIを設けません。応�
 |GET|`/inventory`|現在庫・条件検索|
 |GET|`/inventory/movements`|在庫元帳|
 |POST|`/stocktakes`|棚卸開始・登録|
+|POST|`/inventory/opening-balances`|原料・包材・フレーバーの開始在庫を登録。`item_id`必須、`quantity`・`unit_cost`・`amount`は任意。金額未入力時は数量×単価。数量がある場合のみ在庫元帳へ加算|
 |POST|`/inventory-adjustments`|理由付き在庫調整|
 |POST|`/daily-closures`|日次確認|
 |POST|`/daily-closures/{id}/reopen`|理由付き再開|
