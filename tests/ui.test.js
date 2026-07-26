@@ -20,6 +20,14 @@ test('Phase1の下部導線と在庫初期登録が表示される',()=>{
   assert.match(app,/data-bottom-view/);
 });
 
+test('LINE利用者管理は従業員カードから直接操作する',()=>{
+  assert.doesNotMatch(html,/id="registrationCodeForm"/);
+  assert.match(html,/id="lineUsersList" class="line-user-grid"/);
+  assert.match(app,/function lineUserCard/);
+  assert.match(app,/data-issue-line-code/);
+  assert.match(app,/statusRank/);
+});
+
 test('検品票と部門連動のUI契約を維持する',()=>{
   assert.match(html,/備考（破棄理由）<textarea name="memo" rows="3" required>/);
   assert.match(inputs,/x\.department_id===departmentId/);
