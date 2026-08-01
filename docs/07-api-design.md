@@ -33,7 +33,7 @@ n8n APIは署名用3ヘッダーを必須とする。管理APIはPIN確認済み
 |GET|`/dashboard?department=lotus&period=day&anchor=2026-07-17`|社長画面一括取得|
 |GET|`/dashboard/details/{metric}?department=&from=&to=`|KPI根拠明細|
 |GET|`/dashboard/inventory?department=&asOf=`|時点在庫|
-|GET|`/dashboard/process-analysis?department=&from=&to=`|工程別投入・加工後・廃棄・歩留まり・時間|
+|GET|`/dashboard/process-analysis?department=&from=&to=`|工程分析対象工程の投入・加工後・廃棄・歩留まり・時間・労務費・生産性。れんこん受入実測は検品原本から集計|
 |GET|`/dashboard/workforce-analysis?department=&from=&to=`|人別時間・人別工程時間・人別歩留まり・生産性|
 |GET|`/dashboard/product-profitability?department=&from=&to=`|商品別売上・直接原価・粗利・粗利率|
 
@@ -97,6 +97,8 @@ PATCHは更新内容と `reason`、現在の `version` を要求し、競合時�
 ## マスタ
 
 `/masters/departments`, `/products`, `/items`, `/processes`, `/employees`, `/partners`, `/flavors`, `/locations`, `/units` を共通形式で提供します。削除APIは設けず `active=false` とします。
+
+`POST /masters/partners` は取引先コードを自動採番します。`POST/PATCH /masters/partners` は `is_supplier`、`is_customer`、仕入条件（支払方法・締日・支払日・支払口座）、販売条件（入金方法・締日・入金日・入金口座）、`memo`、`active` を受け取ります。仕入先・販売先は少なくとも一方を必須とし、コードは更新できません。
 
 `POST /masters/employees`は`name`, `department_id`（任意）, `hourly_rate`, `line_enabled`, `employment_status`を扱い、従業員コードは`EMP000001`形式でサーバーが自動採番する。レスポンスは`id`と`code`を返す。`PATCH /masters/employees/{id}`ではコードを変更せず、部門に空文字またはNULLを指定すると未設定へ戻せる。時給は`labor_cost_rates`へ有効期間付きで保存し、従業員本体と同一取引で更新する。退職またはLINE対象外への変更時は有効なLINE紐付けを解除する。
 

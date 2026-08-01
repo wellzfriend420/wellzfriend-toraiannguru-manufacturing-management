@@ -47,7 +47,8 @@ erDiagram
 |inventory_items|id, code, name, item_type(`raw`,`processed_lotus`,`semi_finished_chips`,`finished`,`flavor`,`packaging`), department_id, storage_unit, display_unit, inventory_managed, active|
 |products|id, code, name, department_id, content_amount, content_unit, flavor_id, sales_unit, standard_price, standard_cost, inventory_item_id, active|
 |flavors|id, code, name, inventory_item_id, stock_unit(`bag`), active|
-|partners|id, code, name, partner_type, payment_terms_days, receipt_terms_days, active|
+|partners|id, code（自動採番）, name, is_supplier, is_customer, supplier_payment_method, supplier_closing_day, supplier_payment_day, supplier_payment_account, customer_receipt_method, customer_closing_day, customer_receipt_day, customer_receipt_account, memo, active|
+|partner_code_sequences|id, last_number|
 |product_packaging_components|id, product_id, packaging_item_id, quantity_per_product, effective_from, effective_to, active|
 |locations|id, code, name, department_id, active|
 |units|code, name, dimension, to_base_factor, decimal_places, active|
@@ -231,6 +232,7 @@ erDiagram
 - 原料、フレーバー、包材、外注費等の明細を保持できるようにする。
 - 油等の月次費用および経営全体の原価は部門損益アプリの管理対象とし、本DBへ重複計上しない。
 - 資金繰りアプリへは、出荷ID、納品日、取引先、売掛／現金、売上金額、入金予定日、売掛残高、入金状態、外部連携IDを渡せるようにする。
+- 取引先は仕入先・販売先の両方を選択可能とし、仕入条件と販売条件を別列で保持する。Phase1の口座は名称を保存し、Phase2連携時に資金繰り側の口座IDへ対応付ける。
 - 原価のロット評価方法、端数、外注費の配賦単位、連携APIの具体形式は未確定であり、既存ロジックと連携先仕様の確認後にレビューする。
 
 既存Excelは27シート版で、`T_経費`と`A_工程ロス`がなく、`T_仕入`・`T_工程`の末尾ヘッダーも欠けています。コミット`b13e06f`の`migratePhase2Schema()`も工程列の修復とA_工程ロス作成を行わないため、移行済みと仮定しません。移行処理はシート名だけで版を決めず、ヘッダー集合・列数・登録日時・ログを使って版を判定します。意味を確定できない行は`import_errors`へ保留し、本番取引へ書き込みません。

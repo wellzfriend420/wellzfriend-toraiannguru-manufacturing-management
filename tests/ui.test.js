@@ -28,6 +28,13 @@ test('LINE利用者管理は従業員カードから直接操作する',()=>{
   assert.match(app,/statusRank/);
 });
 
+test('取引先マスタは自動採番と仕入・販売条件を持つ',()=>{
+  assert.match(html,/id="partnerMasterForm"/);
+  assert.doesNotMatch(html,/id="partnerMasterForm"(?:(?!<\/form>).)*name="code"/s);
+  for(const field of ['is_supplier','is_customer','supplier_payment_method','supplier_closing_day','supplier_payment_day','supplier_payment_account','customer_receipt_method','customer_closing_day','customer_receipt_day','customer_receipt_account','memo'])assert.match(html,new RegExp(`name="${field}"`));
+  assert.match(inputs,/function editPartner/);
+});
+
 test('検品票と部門連動のUI契約を維持する',()=>{
   assert.match(html,/備考（破棄理由）<textarea name="memo" rows="3" required>/);
   assert.match(inputs,/x\.department_id===departmentId/);

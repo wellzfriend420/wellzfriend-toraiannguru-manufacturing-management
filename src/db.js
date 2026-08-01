@@ -18,6 +18,7 @@ if(!db.prepare("SELECT 1 FROM pragma_table_info('work_sessions') WHERE name='is_
 const addColumn=(table,column,definition)=>{if(!db.prepare(`SELECT 1 FROM pragma_table_info('${table}') WHERE name=?`).get(column))db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);};
 addColumn('processes','cost_scope',"TEXT NOT NULL DEFAULT 'department_shared'");
 addColumn('processes','shared_cost_category','TEXT');
+addColumn('processes','analysis_target','INTEGER NOT NULL DEFAULT 0');
 addColumn('receipt_lines','box_count','INTEGER NOT NULL DEFAULT 0');
 addColumn('receipt_lines','delivered_quantity','INTEGER NOT NULL DEFAULT 0');
 addColumn('receipt_lines','measured_quantity','INTEGER NOT NULL DEFAULT 0');
@@ -31,8 +32,22 @@ addColumn('shipment_lines','preparation_batch_id','INTEGER REFERENCES delivery_p
 addColumn('outsourcing_costs','product_id','INTEGER REFERENCES products(id)');
 addColumn('stocktakes','memo','TEXT');
 addColumn('employees','line_enabled','INTEGER NOT NULL DEFAULT 1');
+addColumn('partners','is_supplier','INTEGER NOT NULL DEFAULT 1');
+addColumn('partners','is_customer','INTEGER NOT NULL DEFAULT 1');
+addColumn('partners','supplier_payment_method','TEXT');
+addColumn('partners','supplier_closing_day','INTEGER');
+addColumn('partners','supplier_payment_day','INTEGER');
+addColumn('partners','supplier_payment_account','TEXT');
+addColumn('partners','customer_receipt_method','TEXT');
+addColumn('partners','customer_closing_day','INTEGER');
+addColumn('partners','customer_receipt_day','INTEGER');
+addColumn('partners','customer_receipt_account','TEXT');
+addColumn('partners','memo','TEXT');
+db.prepare("UPDATE partners SET is_supplier=CASE WHEN partner_type IN ('supplier','both') THEN 1 ELSE 0 END,is_customer=CASE WHEN partner_type IN ('customer','both') THEN 1 ELSE 0 END WHERE is_supplier=1 AND is_customer=1 AND partner_type IN ('supplier','customer')").run();
 db.prepare('INSERT OR IGNORE INTO employee_code_sequences(id,last_number) VALUES(1,0)').run();
 db.prepare(`UPDATE employee_code_sequences SET last_number=MAX(last_number,COALESCE((SELECT MAX(id) FROM employees),0),COALESCE((SELECT MAX(CAST(SUBSTR(code,4) AS INTEGER)) FROM employees WHERE code GLOB 'EMP[0-9]*'),0)) WHERE id=1`).run();
+db.prepare('INSERT OR IGNORE INTO partner_code_sequences(id,last_number) VALUES(1,0)').run();
+db.prepare(`UPDATE partner_code_sequences SET last_number=MAX(last_number,COALESCE((SELECT MAX(id) FROM partners),0),COALESCE((SELECT MAX(CAST(SUBSTR(code,4) AS INTEGER)) FROM partners WHERE code GLOB 'PTR[0-9]*'),0)) WHERE id=1`).run();
 export const now = () => new Date().toISOString();
 export function transaction(fn) { db.exec('BEGIN IMMEDIATE'); try { const value=fn(); db.exec('COMMIT'); return value; } catch(error) { db.exec('ROLLBACK'); throw error; } }
 export function audit(actor, action, entityType, entityId, details={}) { db.prepare('INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,details_json,created_at) VALUES(?,?,?,?,?,?)').run(actor?.id??null,action,entityType,entityId==null?null:String(entityId),JSON.stringify(details),now()); }
@@ -56,6 +71,11 @@ insertProduct.run('produce_green_onion','ねぎ',departmentId('produce'),now(),n
 const insertProcess=db.prepare('INSERT OR IGNORE INTO processes(code,name,department_id,allocation_target,dashboard_role,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)');
 db.prepare("UPDATE processes SET code='produce_receipt' WHERE code='produce_harvest' AND NOT EXISTS(SELECT 1 FROM processes WHERE code='produce_receipt')").run();
 [['lotus_receipt','入荷','lotus',1,null,1],['lotus_boiled','水煮加工','lotus',1,'primary_process',2],['lotus_chips','チップス加工','lotus',1,'primary_process',3],['lotus_delivery_prep','納品準備','lotus',1,null,4],['lotus_delivery','配達・納品','lotus',1,null,5],['produce_receipt','入荷','produce',1,null,1],['produce_sort_pack','選別・袋詰め','produce',1,'produce_selection',2],['produce_delivery_prep','納品準備','produce',1,null,3],['produce_delivery','配達・納品','produce',1,null,4]].forEach(([code,name,dept,allocation,role,sort])=>insertProcess.run(code,name,departmentId(dept),allocation,role,sort,now(),now()));
+[['lotus_receipt_measurement','受入実測',10],['lotus_washing','洗浄',20],['lotus_peeling_sectioning','皮剥き・節切り',30],['lotus_packaging','包装',40],['lotus_shipping','出荷',50]].forEach(([code,name,sort])=>insertProcess.run(code,name,departmentId('lotus'),1,null,sort,now(),now()));
+if(!db.prepare("SELECT 1 FROM app_migrations WHERE migration_key='process_analysis_targets_v1'").get()){
+  db.prepare("UPDATE processes SET analysis_target=CASE WHEN code IN ('lotus_receipt_measurement','lotus_washing','lotus_peeling_sectioning','lotus_packaging','lotus_shipping','produce_sort_pack') THEN 1 ELSE 0 END").run();
+  db.prepare("INSERT INTO app_migrations(migration_key,applied_at) VALUES('process_analysis_targets_v1',?)").run(now());
+}
 db.prepare("UPDATE processes SET dashboard_role='produce_selection' WHERE code='produce_sort_pack' AND dashboard_role='primary_process'").run();
 db.prepare("UPDATE processes SET name='入荷',dashboard_role=NULL,active=1 WHERE code='produce_receipt'").run();
 db.prepare("UPDATE processes SET cost_scope='department_shared',shared_cost_category=CASE code WHEN 'lotus_chips' THEN 'chips_processing' WHEN 'lotus_delivery_prep' THEN 'delivery_preparation' WHEN 'produce_sort_pack' THEN 'produce_processing' WHEN 'produce_delivery_prep' THEN 'delivery_preparation' ELSE 'other_shared' END").run();
