@@ -83,7 +83,7 @@ function processLineEvent(company,eventId,input){
       db.prepare("UPDATE standalone_break_sessions SET ended_at=?,minutes=?,status='completed',updated_at=? WHERE id=?").run(endedAt,minutes,now(),currentBreak.id);
       return {state:'idle',message:`休憩を終了しました（${minutes}分）`,menu:menu(company.id)};
     }
-    if(!current)throw new Error('進行中の作業がありません');
+    if(!current)return {state:'idle',message:'進行中の作業はありません。待機メニューへ戻しました',menu:menu(company.id)};
     const result=completeSession(current,input.occurred_at??now(),companySettings);
     queueNotification(company.id,current.id,'work_ended','employee',lineId,{message:`作業を終了しました（${result.minutes}分）`});
     return {state:'idle',message:`作業を終了しました（作業${result.minutes}分・休憩${result.break_minutes}分）`,menu:menu(company.id)};
