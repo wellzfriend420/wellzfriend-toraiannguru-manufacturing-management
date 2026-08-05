@@ -47,3 +47,11 @@ test('ダッシュボードへログイン・権限UIを表示しない',()=>{
   assert.doesNotMatch(app,/ユーザーID|パスワード|権限区分|ログイン・権限設計/);
   assert.match(css,/#dashboardView \{ height:calc\(100d?vh/);
 });
+
+test('作業履歴はUTCをJST表示し訂正時にUTCへ戻す',()=>{
+  assert.match(app,/timeZone:'Asia\/Tokyo'/);
+  assert.match(app,/const jstInputToUtc=/);
+  assert.match(app,/\+09:00/);
+  assert.match(app,/payload\.started_at=jstInputToUtc/);
+  assert.match(app,/payload\.ended_at=jstInputToUtc/);
+});
