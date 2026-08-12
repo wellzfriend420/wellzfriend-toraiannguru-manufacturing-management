@@ -20,6 +20,15 @@ test('Phase1の下部導線と在庫初期登録が表示される',()=>{
   assert.match(app,/data-bottom-view/);
 });
 
+test('資材入荷は包材・フレーバーの在庫と原価を同時登録できる',()=>{
+  assert.match(html,/data-operation="material-receipt"/);
+  assert.match(html,/id="materialReceiptForm"/);
+  for(const field of ['receipt_date','partner_id','item_id','delivered_quantity','measured_quantity','inspection_waste_quantity','inspection_waste_reason_id','purchase_amount','settlement_type','due_date','payment_account','employee_id','memo'])assert.match(html,new RegExp(`id="materialReceiptForm"(?:(?!<\/form>).)*name="${field}"`,'s'));
+  assert.match(inputs,/'supplier-partners'/);
+  assert.match(inputs,/'material-items'/);
+  assert.match(inputs,/submit\(form,'\/material-receipts'/);
+});
+
 test('LINE利用者管理は従業員カードから直接操作する',()=>{
   assert.doesNotMatch(html,/id="registrationCodeForm"/);
   assert.match(html,/id="lineUsersList" class="line-user-grid"/);
@@ -31,8 +40,19 @@ test('LINE利用者管理は従業員カードから直接操作する',()=>{
 test('取引先マスタは自動採番と仕入・販売条件を持つ',()=>{
   assert.match(html,/id="partnerMasterForm"/);
   assert.doesNotMatch(html,/id="partnerMasterForm"(?:(?!<\/form>).)*name="code"/s);
-  for(const field of ['is_supplier','is_customer','supplier_payment_method','supplier_closing_day','supplier_payment_day','supplier_payment_account','customer_receipt_method','customer_closing_day','customer_receipt_day','customer_receipt_account','memo'])assert.match(html,new RegExp(`name="${field}"`));
+  for(const field of ['is_supplier','is_customer','supplier_settlement_type','supplier_payment_method','supplier_closing_day','supplier_payment_day','supplier_payment_terms_days','supplier_payment_account','customer_settlement_type','customer_receipt_method','customer_closing_day','customer_receipt_day','customer_receipt_terms_days','customer_receipt_account','memo'])assert.match(html,new RegExp(`name="${field}"`));
   assert.match(inputs,/function editPartner/);
+  assert.match(inputs,/applySupplierDefaults/);
+  assert.match(inputs,/applyCustomerDefaults/);
+});
+
+test('掛取引の入出金予定をアプリ内で確認できる',()=>{
+  assert.match(html,/data-operation="payment-schedules"/);
+  assert.match(html,/id="operationPaymentSchedules"/);
+  assert.match(html,/id="payableScheduleList"/);
+  assert.match(html,/id="receivableScheduleList"/);
+  assert.match(inputs,/request\('\/payables\?status=open'\)/);
+  assert.match(inputs,/request\('\/receivables\?status=open'\)/);
 });
 
 test('検品票と部門連動のUI契約を維持する',()=>{

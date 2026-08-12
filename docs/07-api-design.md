@@ -54,6 +54,7 @@ Dashboard系APIはGETのみとし、専用の更新APIを設けません。応�
 |GET/POST|`/purchase-costs`|納品書に基づく原料仕入金額の一覧・登録。対象検品明細へ紐付け|
 |GET/PATCH|`/purchase-costs/{id}`|仕入金額の詳細・理由付き訂正|
 |GET/POST|`/delivery-preparations`|納品準備の資材使用一覧・登録。在庫減算と直接資材原価を同時記録|
+|POST|`/material-receipts`|包材・フレーバー入荷を登録。在庫・原価に加え、掛仕入は買掛・支払予定、即払いは支払済みを同一取引で保存|
 |GET/POST|`/process-runs`|工程実績一覧・登録|
 |GET/PATCH|`/process-runs/{id}`|詳細・訂正／取消|
 |GET/POST|`/individual-process-results`|個人別加工実績一覧・登録。通常登録に時間入力なし|
@@ -74,6 +75,7 @@ Dashboard系APIはGETのみとし、専用の更新APIを設けません。応�
 |POST|`/daily-closures`|日次確認|
 |POST|`/daily-closures/{id}/reopen`|理由付き再開|
 |GET|`/receivables?partner=&dueFrom=&dueTo=&status=`|Phase1で作成した売掛残高・入金予定の参照|
+|GET|`/payables?status=`|仕入から作成した買掛残高・支払予定の参照|
 
 PATCHは更新内容と `reason`、現在の `version` を要求し、競合時は409を返します。
 
@@ -81,7 +83,7 @@ PATCHは更新内容と `reason`、現在の `version` を要求し、競合時�
 
 原料仕入金額は検品Requestへ追加せず、管理者が納品書を基に`/purchase-costs`へ`receiptLineId`, `purchaseAmount`を登録する。登録者・登録日時・訂正履歴を保存し、未入力の検品明細を一覧取得できるようにする。
 
-納品登録では`deliveryDate`と`settlementType`を必須とし、売上は`deliveryDate`で認識します。`receivable`は`dueDate`を保持して売掛を生成し、`cash`は納品時点で入金済みとします。納品確定時に商品別の売上と直接原価内訳を保存します。
+納品登録では売上を`deliveryDate`で認識します。決済区分未指定時は取引先マスタの既定値、予定日未指定時は入金サイトから算出します。`receivable`は売掛・入金予定を生成し、`cash`は納品時点で入金済みとします。仕入も同様に、`payable`は買掛・支払予定、`cash`・`bank_immediate`は仕入時点で支払済みとします。
 
 出荷明細の直接原価は完成品ロット原価内訳、指定した納品準備実績、直接外注費を合算してサーバー側で算出する。クライアントから直接原価合計を受け付けず、原価内訳、直接原価、粗利益、粗利率を同一取引で固定保存する。部門共通労務費はSKU直接原価へ加算しない。
 

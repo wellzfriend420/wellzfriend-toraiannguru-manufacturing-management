@@ -128,6 +128,11 @@ input,select { min-height: 48px; padding: .72rem .85rem; border-color: #cfc9be; 
   .operation-menu button { min-height: 58px; text-align: center; }
   .mobile-form button { min-height: 52px; }
 }
+.schedule-columns { display:grid; gap:16px; margin-top:16px; }
+.schedule-columns section { min-width:0; padding:16px; border:1px solid #dbe5df; border-radius:16px; background:#fffdf9; }
+.schedule-columns .management-card { align-items:center; }
+.schedule-columns .management-card>div:last-child { text-align:right; }
+@media (min-width:761px) { .schedule-columns { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .inventory-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:18px 0; }
 .inventory-actions button { min-height:48px; padding:8px; background:#edf2ed; color:#214c3f; border:1px solid #d7dfd9; }
 .inventory-actions button.active { background:#214c3f; color:#fff; }

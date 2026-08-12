@@ -47,7 +47,7 @@ erDiagram
 |inventory_items|id, code, name, item_type(`raw`,`processed_lotus`,`semi_finished_chips`,`finished`,`flavor`,`packaging`), department_id, storage_unit, display_unit, inventory_managed, active|
 |products|id, code, name, department_id, content_amount, content_unit, flavor_id, sales_unit, standard_price, standard_cost, inventory_item_id, active|
 |flavors|id, code, name, inventory_item_id, stock_unit(`bag`), active|
-|partners|id, code（自動採番）, name, is_supplier, is_customer, supplier_payment_method, supplier_closing_day, supplier_payment_day, supplier_payment_account, customer_receipt_method, customer_closing_day, customer_receipt_day, customer_receipt_account, memo, active|
+|partners|id, code（自動採番）, name, is_supplier, is_customer, supplier_settlement_type, supplier_payment_method, supplier_closing_day, supplier_payment_day, supplier_payment_terms_days, supplier_payment_account, customer_settlement_type, customer_receipt_method, customer_closing_day, customer_receipt_day, customer_receipt_terms_days, customer_receipt_account, memo, active|
 |partner_code_sequences|id, last_number|
 |product_packaging_components|id, product_id, packaging_item_id, quantity_per_product, effective_from, effective_to, active|
 |locations|id, code, name, department_id, active|
@@ -65,7 +65,8 @@ erDiagram
 |---|---|
 |receipt_batches|id, receipt_date（受入日）, partner_id（仕入先）, inspected_by_employee_id（担当者）, department_id, status, source_type, external_id, memo|
 |receipt_lines|id, batch_id, item_id（品目）, internal_lot_no, box_count, delivered_quantity（納品数量）, measured_quantity（実測数量）, inspection_waste_quantity（検品時破棄数量）, inspection_waste_reason（必須）, inventory_received_quantity（実測－検品破棄）, unit, amount, expiry_date|
-|purchase_cost_entries|id, receipt_line_id, purchase_amount, source_type（delivery_note）, entered_by, entered_at, corrected_at, version|
+|purchase_cost_entries|id, receipt_line_id, purchase_amount, settlement_type（payable/cash/bank_immediate）, due_date, payment_method, payment_account, payment_status, paid_on, source_type（delivery_note）, entered_by, entered_at, corrected_at, version|
+|payables|id, purchase_cost_entry_id, partner_id, recognized_on, original_amount, outstanding_amount, due_date, payment_method, payment_account, status|
 |inventory_lot_cost_components|id, inventory_lot_id, cost_type, amount_per_unit, source_type, source_id|
 |process_runs|id, work_date, department_id, process_id, product_id（青果では必須）, input_item_id, output_item_id, input_lot_id, output_lot_no, before_qty, after_qty, unit, waste_qty, started_at, ended_at, break_minutes, status, memo|
 |individual_process_results|id, process_run_id, employee_id, input_lot_id, input_qty_g, waste_qty_g, output_qty_g, work_session_id, calculated_minutes, time_source(`line`,`manual_exception`), memo, status|
@@ -74,7 +75,7 @@ erDiagram
 |production_outputs|id, batch_id, product_id, item_id, completed_weight_g, completed_count, count_unit, defect_qty, waste_qty|
 |delivery_preparation_batches|id, preparation_date, department_id, process_id, memo, created_by, created_at|
 |delivery_preparation_materials|id, batch_id, product_id, inventory_lot_id, material_item_id, used_quantity, prepared_product_quantity, material_cost_amount|
-|shipment_batches|id, delivery_date, physical_shipment_date(nullable), department_id, partner_id, shipment_type, settlement_type(`receivable`,`cash`), payment_status, due_date(nullable), status, external_id, memo|
+|shipment_batches|id, delivery_date, physical_shipment_date(nullable), department_id, partner_id, settlement_type(`receivable`,`cash`), due_date, receipt_method, receipt_account, payment_status, paid_on, status, memo|
 |shipment_lines|id, batch_id, product_id, inventory_lot_id, quantity, unit, unit_price, sales_amount, direct_cost_amount, gross_profit_amount, cost_snapshot_at|
 |shipment_cost_details|id, shipment_line_id, cost_type(`raw_material`,`flavor`,`packaging`,`outsourcing`,`other_direct`), source_type, source_id, amount, calculation_note|
 |work_sessions|id, employee_id, department_id, process_id, work_date, started_at, ended_at, break_minutes, minutes, source_type(`line`,`web`), start_external_id, end_external_id, status|
@@ -122,6 +123,8 @@ erDiagram
 - LINE連携後の通常登録で`time_source=manual_exception`を受け付けず、管理者例外APIだけに限定する
 - 完成品の`completed_weight_g`と`completed_count`を別値として保持し、一方から他方を原本として上書きしない
 - `settlement_type=receivable`は売掛連携対象、`settlement_type=cash`は登録時点で入金済みとする
+- 仕入の`settlement_type=payable`は買掛・支払予定を作成し、`cash`・`bank_immediate`は仕入日に支払済みとする
+- 予定日を画面で指定しない場合、取引先マスタの支払／入金サイト日数を取引日に加算して自動設定する。自動値は取引入力時に変更可能とする
 - 出荷確定時の商品別直接原価を明細として保存し、後のマスタ変更で当時の粗利を無断変更しない
 - 包材仕入ロットの単価は`receipt_lines.amount ÷ receipt_lines.inventory_received_quantity`で算出し、数量0は禁止する
 - 原料の在庫加算数量は `measured_quantity - inspection_waste_quantity` とし、0未満を禁止する
@@ -188,6 +191,7 @@ erDiagram
 - 原料仕入金額は管理者が納品書を基に`purchase_cost_entries`へ入力し、対象検品明細と原料在庫ロットへ紐付ける。検品票順を維持するため検品入力本体とは別トランザクションとし、未入力状態を判別可能にする。
 - 工程出力ロットへ入力ロットの原価内訳を歩留まり込みで引き継ぎ、完成品ロットでは原料・フレーバー・包材・直接資材の単位原価内訳を保持する。
 - 納品準備資材は在庫移動と資材使用明細を同一取引で作成し、対象商品数量当たり原価を出荷スナップショットへ引き継ぐ。
+- 通常仕入れの包材・フレーバーは、資材入荷APIで`receipt_batches`、`receipt_lines`、`inventory_lots`、`inventory_movements`、`purchase_cost_entries`、`inventory_lot_cost_components`を同一取引で更新する。在庫数量は検収数量から不良数量を控除し、単価は仕入金額を在庫加算数量で除して保存する。
 - チップス加工、袋詰め、納品準備の労務費は`processes.cost_scope=department_shared`と`shared_cost_category`で部門共通管理し、SKU原価へ配賦しない。
 - 共通フレーバー原料に備えて、有効期間付きフレーバーレシピと構成明細を持つ。`allocation_rule`はヒアリング確定まで未設定を許可する。
 - 外注費は会社共通、部門、特定フレーバーの対象区分と関連IDを保持する。自動配賦式は持たず、部門損益・商品原価側が対象区分を参照できるようにする。
@@ -204,6 +208,7 @@ erDiagram
 - `shipment_batches`の業務日は納品日を正本とする。物理出荷日を別途必要とする場合は任意項目として保持する。
 - 現金販売は納品日に売上計上し、同額の回収済み状態を記録する。
 - 売掛販売は納品日に`receivables`を作成し、入金予定日・残高・消込履歴を保持する。
+- 掛仕入は仕入原価確定日に`payables`を作成し、支払予定日・未払残高を保持する。即払いは`purchase_cost_entries.payment_status=paid`と`paid_on`を保存する。
 - 資金繰りアプリ連携後も、本システム内の納品・売掛・入金対応を追跡できる外部IDを保持する。
 
 ## 既存シートからの移行対応
