@@ -68,6 +68,8 @@ Dashboard系APIはGETのみとし、専用の更新APIを設けません。応�
 |POST|`/labor-cost-rates`|原価配賦用の時給・月給者管理単価登録|
 |GET/PATCH|`/work-sessions/{id}`|工数訂正・取消|
 |GET|`/inventory`|現在庫・条件検索|
+|PATCH|`/inventory/lots/{id}`|現在庫数量・単価の理由付き訂正。数量差分を在庫元帳へ記録|
+|DELETE|`/inventory/lots/{id}`|未使用の初期在庫ロットだけを理由付き削除。使用履歴があれば拒否|
 |GET|`/inventory/movements`|在庫元帳|
 |POST|`/stocktakes`|棚卸開始・登録|
 |POST|`/inventory/opening-balances`|原料・包材・フレーバーの開始在庫を登録。`item_id`必須、`quantity`・`unit_cost`・`amount`は任意。金額未入力時は数量×単価。数量がある場合のみ在庫元帳へ加算|
@@ -103,6 +105,8 @@ PATCHは更新内容と `reason`、現在の `version` を要求し、競合時�
 `POST /masters/partners` は取引先コードを自動採番します。`POST/PATCH /masters/partners` は `is_supplier`、`is_customer`、仕入条件（支払方法・締日・支払日・支払口座）、販売条件（入金方法・締日・入金日・入金口座）、`memo`、`active` を受け取ります。仕入先・販売先は少なくとも一方を必須とし、コードは更新できません。
 
 `POST /masters/employees`は`name`, `department_id`（任意）, `hourly_rate`, `line_enabled`, `employment_status`を扱い、従業員コードは`EMP000001`形式でサーバーが自動採番する。レスポンスは`id`と`code`を返す。`PATCH /masters/employees/{id}`ではコードを変更せず、部門に空文字またはNULLを指定すると未設定へ戻せる。時給は`labor_cost_rates`へ有効期間付きで保存し、従業員本体と同一取引で更新する。退職またはLINE対象外への変更時は有効なLINE紐付けを解除する。
+
+商品・工程・在庫品目・フレーバーもコード入力を受けず、それぞれ`PRD000001`、`PCS000001`、`ITM000001`、`FLV000001`形式でサーバーが自動採番する。既存コードは移行・更新時も保持する。
 
 工程マスタ更新は並び順と使用停止を含みます。商品・フレーバーマスタは既存IDを保持した移行後も追加・編集・使用停止を可能にします。商品別包材構成は`/masters/product-packaging-components`で管理します。
 
